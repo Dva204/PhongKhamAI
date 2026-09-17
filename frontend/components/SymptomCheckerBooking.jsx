@@ -9,10 +9,16 @@ import {
 import ApiService from '../services/api';
 import AuthModal from './AuthModal';
 
-export default function SymptomCheckerBooking() {
-  const [activeTab, setActiveTab] = useState('checker'); // checker, doctor, patient, admin
+export default function SymptomCheckerBooking({ initialTab = 'checker', hideLandingSections = false }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Sync initialTab when prop changes
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
 
   // Ref for scrolling to AI Symptom Checker
   const checkerSectionRef = useRef(null);
@@ -518,91 +524,96 @@ export default function SymptomCheckerBooking() {
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-[#1C1B19] font-sans antialiased pb-20">
-      {/* 1. Navigation Header per design.md */}
-      <header className="bg-[#FFFFFF] border-b border-[#E4E1D8] px-4 lg:px-8 py-4 sticky top-0 z-30 shadow-subtle">
-        <div className="max-w-[1080px] mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('checker')}>
-            <div className="w-10 h-10 rounded-sm bg-[#1F6F5C] text-white flex items-center justify-center font-bold">
-              <Stethoscope className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-[#1C1B19]">Sức Khoẻ Thông Minh</h1>
-              <p className="text-xs text-[#6B6A65] hidden sm:block">Nền tảng Đặt lịch khám bệnh & AI Phân tích triệu chứng</p>
-            </div>
-          </div>
-
-          {/* Account Profile or Auth Login */}
-          <div className="flex items-center space-x-3">
-            {currentUser ? (
-              <div className="flex items-center space-x-3">
-                <div className="text-right hidden sm:block">
-                  <span className="text-sm font-medium text-[#1C1B19] block">{currentUser.full_name}</span>
-                  <span className="text-xs text-[#6B6A65]">
-                    {currentUser.role === 'PATIENT' ? 'Bệnh nhân' : currentUser.role === 'DOCTOR' ? 'Bác sĩ' : 'Quản trị viên'}
-                  </span>
+      {/* Navigation Header (Only when not embedded in subpages with top Navbar) */}
+      {!hideLandingSections && (
+        <>
+          <header className="bg-[#FFFFFF] border-b border-[#E4E1D8] px-4 lg:px-8 py-4 sticky top-0 z-30 shadow-subtle">
+            <div className="max-w-[1080px] mx-auto flex items-center justify-between">
+              <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('checker')}>
+                <div className="w-10 h-10 rounded-sm bg-[#1F6F5C] text-white flex items-center justify-center font-bold">
+                  <Stethoscope className="w-6 h-6" />
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-1.5 rounded-sm bg-[#F7F5F0] hover:bg-[#EFECE6] border border-[#E4E1D8] text-[#1C1B19] text-xs font-medium transition flex items-center space-x-1"
-                  title="Đăng xuất"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">Thoát</span>
-                </button>
+                <div>
+                  <h1 className="text-xl font-semibold text-[#1C1B19]">Sức Khoẻ Thông Minh</h1>
+                  <p className="text-xs text-[#6B6A65] hidden sm:block">Nền tảng Đặt lịch khám bệnh & AI Phân tích triệu chứng</p>
+                </div>
               </div>
-            ) : (
+
+              {/* Account Profile or Auth Login */}
+              <div className="flex items-center space-x-3">
+                {currentUser ? (
+                  <div className="flex items-center space-x-3">
+                    <div className="text-right hidden sm:block">
+                      <span className="text-sm font-medium text-[#1C1B19] block">{currentUser.full_name}</span>
+                      <span className="text-xs text-[#6B6A65]">
+                        {currentUser.role === 'PATIENT' ? 'Bệnh nhân' : currentUser.role === 'DOCTOR' ? 'Bác sĩ' : 'Quản trị viên'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="px-3 py-1.5 rounded-sm bg-[#F7F5F0] hover:bg-[#EFECE6] border border-[#E4E1D8] text-[#1C1B19] text-xs font-medium transition flex items-center space-x-1"
+                      title="Đăng xuất"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="hidden sm:inline">Thoát</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="btn-primary px-4 py-2 text-sm flex items-center space-x-1.5"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Đăng nhập</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {/* Navigation Sub-header Tabs */}
+          <div className="bg-[#FFFFFF] border-b border-[#E4E1D8] px-4 lg:px-8">
+            <div className="max-w-[1080px] mx-auto flex space-x-8 overflow-x-auto scrollbar-none">
               <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="btn-primary px-4 py-2 text-sm flex items-center space-x-1.5"
+                onClick={() => setActiveTab('checker')}
+                className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
+                  activeTab === 'checker' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
+                }`}
               >
-                <LogIn className="w-4 h-4" />
-                <span>Đăng nhập</span>
+                Trang chủ & AI Symptom Checker
               </button>
-            )}
+
+              <button
+                onClick={() => setActiveTab('doctor')}
+                className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
+                  activeTab === 'doctor' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
+                }`}
+              >
+                Ca khám Bác sĩ
+              </button>
+
+              <button
+                onClick={() => setActiveTab('patient')}
+                className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
+                  activeTab === 'patient' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
+                }`}
+              >
+                Lịch hẹn của tôi & Đánh giá
+              </button>
+
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
+                  activeTab === 'admin' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
+                }`}
+              >
+                Quản trị & Quy tắc AI
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </>
+      )}
 
-      {/* 2. Navigation Sub-header Tabs */}
-      <div className="bg-[#FFFFFF] border-b border-[#E4E1D8] px-4 lg:px-8">
-        <div className="max-w-[1080px] mx-auto flex space-x-8 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveTab('checker')}
-            className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
-              activeTab === 'checker' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
-            }`}
-          >
-            Trang chủ & AI Symptom Checker
-          </button>
-
-          <button
-            onClick={() => setActiveTab('doctor')}
-            className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
-              activeTab === 'doctor' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
-            }`}
-          >
-            Ca khám Bác sĩ
-          </button>
-
-          <button
-            onClick={() => setActiveTab('patient')}
-            className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
-              activeTab === 'patient' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
-            }`}
-          >
-            Lịch hẹn của tôi & Đánh giá
-          </button>
-
-          <button
-            onClick={() => setActiveTab('admin')}
-            className={`pb-3 pt-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
-              activeTab === 'admin' ? 'border-[#1F6F5C] text-[#1F6F5C]' : 'border-transparent text-[#6B6A65] hover:text-[#1C1B19]'
-            }`}
-          >
-            Quản trị & Quy tắc AI
-          </button>
-        </div>
-      </div>
 
       {/* Main Container (Max width 1080px per design.md) */}
       <main className="max-w-[1080px] mx-auto px-4 lg:px-8 mt-8 space-y-12">
