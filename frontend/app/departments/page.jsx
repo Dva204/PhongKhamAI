@@ -12,6 +12,7 @@ export default function DepartmentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // 14 Medical Specialties Catalog Data (Per Item 1 in Specification Table)
   const initialDepartmentsData = [
     { id: 1, code: 'INTERNAL_MEDICINE', name: 'Nội tổng quát', doctor_count: 5, description: 'Chẩn đoán và điều trị bệnh lý đường tiêu hóa, hô hấp, tuần hoàn tổng quát.', conditions: ['Cảm cúm', 'Viêm phế quản', 'Rối loạn tiêu hóa', 'Sốt xuất huyết'] },
     { id: 2, code: 'CARDIOLOGY', name: 'Tim mạch', doctor_count: 4, description: 'Tầm soát bệnh mạch vành, tăng huyết áp, suy tim và rối loạn nhịp tim.', conditions: ['Tăng huyết áp', 'Thiếu máu cơ tim', 'Rối loạn nhịp tim', 'Đau thắt ngực'] },
@@ -20,7 +21,13 @@ export default function DepartmentsPage() {
     { id: 5, code: 'ENT', name: 'Tai Mũi Họng', doctor_count: 3, description: 'Nội soi chẩn đoán viêm xoang, viêm họng cấp, viêm amidan và tổn thương màng nhĩ.', conditions: ['Viêm xoang cấp', 'Viêm amidan', 'Ù tai', 'Hạt dây thanh'] },
     { id: 6, code: 'NEUROLOGY', name: 'Thần kinh', doctor_count: 3, description: 'Tầm soát đau đầu mãn tính, rối loạn giấc ngủ, tiền đình và thiếu máu não.', conditions: ['Migraine', 'Rối loạn tiền đình', 'Đau thần kinh tọa', 'Mất ngủ'] },
     { id: 7, code: 'OBGYN', name: 'Sản phụ khoa', doctor_count: 3, description: 'Khám thai định kỳ, chăm sóc sức khỏe phụ nữ và tư vấn sinh sản.', conditions: ['Khám thai định kỳ', 'Tư vấn sinh sản', 'Viêm nhiễm phụ khoa', 'Chăm sóc thai kỳ'] },
-    { id: 8, code: 'OPHTHALMOLOGY', name: 'Mắt (Nhãn khoa)', doctor_count: 2, description: 'Đo tật khúc xạ, tầm soát đau mắt đỏ, đục thủy tinh thể và cận thị.', conditions: ['Đau mắt đỏ', 'Tật khúc xạ', 'Đục thủy tinh thể', 'Khô mắt'] }
+    { id: 8, code: 'OPHTHALMOLOGY', name: 'Mắt (Nhãn khoa)', doctor_count: 2, description: 'Đo tật khúc xạ, tầm soát đau mắt đỏ, đục thủy tinh thể và cận thị.', conditions: ['Đau mắt đỏ', 'Tật khúc xạ', 'Đục thủy tinh thể', 'Khô mắt'] },
+    { id: 9, code: 'RHEUMATOLOGY', name: 'Cơ Xương Khớp', doctor_count: 3, description: 'Trị liệu thoái hóa khớp, thoái hóa cột sống, gút và viêm khớp dạng thấp.', conditions: ['Thoái hóa khớp gối', 'Thoái hóa đốt sống cổ', 'Bệnh Gút (Gout)', 'Viêm khớp dạng thấp'] },
+    { id: 10, code: 'GASTROENTEROLOGY', name: 'Tiêu hóa & Gan mật', doctor_count: 4, description: 'Khám và nội soi dạ dày, đại tràng, vi trùng HP, viêm gan siêu vi B/C.', conditions: ['Viêm loét dạ dày HP', 'Trào ngược dạ dày thực quản', 'Viêm gan B/C', 'Hội chứng ruột kích thích'] },
+    { id: 11, code: 'ODONTO_STOMATOLOGY', name: 'Răng Hàm Mặt', doctor_count: 3, description: 'Khám và điều trị nhổ răng khôn, sâu răng, nha chu và thẩm mỹ răng sứ.', conditions: ['Nhổ răng khôn mọc lệch', 'Chữa sâu răng & Viêm tủy', 'Viêm nha chu', 'Tẩy trắng răng'] },
+    { id: 12, code: 'PULMONOLOGY', name: 'Hô hấp & Phổi', doctor_count: 3, description: 'Điều trị hen phế quản, Bệnh phổi tắc nghẽn mãn tính (COPD) và viêm phổi.', conditions: ['Hen phế quản', 'Bệnh COPD', 'Viêm phổi cấp', 'Ho lao & Tầm soát phổi'] },
+    { id: 13, code: 'ENDOCRINOLOGY', name: 'Nội tiết & Tiểu đường', doctor_count: 3, description: 'Quản lý bệnh đái tháo đường, suy tuyến giáp, béo phì và rối loạn chuyển hóa.', conditions: ['Đái tháo đường tuýp 1 & 2', 'Bướu cổ & Viêm tuyến giáp', 'Rối loạn mỡ máu', 'Béo phì'] },
+    { id: 14, code: 'NUTRITION_ANDROLOGY', name: 'Dinh dưỡng & Nam học', doctor_count: 2, description: 'Tư vấn chế độ ăn bệnh lý, tăng giảm cân và khám sức khỏe nam giới.', conditions: ['Tư vấn dinh dưỡng bệnh lý', 'Rối loạn cương dương', 'Tầm soát sức khỏe nam giới', 'Suy giảm Testosterone'] }
   ];
 
   useEffect(() => {
@@ -60,7 +67,7 @@ export default function DepartmentsPage() {
             <span>/</span>
             <span className="font-semibold text-[#1C1B19]">Chuyên khoa</span>
           </div>
-          <h1 className="text-3xl font-bold text-[#1C1B19]">Danh mục Chuyên khoa Y tế</h1>
+          <h1 className="text-3xl font-bold text-[#1C1B19]">Danh mục 14 Chuyên khoa Y tế</h1>
           <p className="text-base text-[#6B6A65]">
             Tìm kiếm phòng khám và xem thông tin chi tiết các bệnh lý được điều trị theo từng chuyên khoa
           </p>

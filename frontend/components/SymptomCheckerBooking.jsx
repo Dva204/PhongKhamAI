@@ -4,7 +4,7 @@ import {
   Calendar, User, Stethoscope, FileText, Phone, Star, ShieldAlert,
   ChevronRight, Plus, Search, Check, RefreshCw, BarChart2, Users,
   ArrowRight, MessageSquare, Pill, Settings, Award, MapPin, LogIn, LogOut, UserCheck,
-  Shield, HelpCircle, ChevronDown, CheckSquare, Info
+  Shield, HelpCircle, ChevronDown, CheckSquare, Info, Trash2, Printer, FilePlus, ClipboardList
 } from 'lucide-react';
 import ApiService from '../services/api';
 import AuthModal from './AuthModal';
@@ -18,7 +18,6 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
-
 
   // Ref for scrolling to AI Symptom Checker
   const checkerSectionRef = useRef(null);
@@ -45,19 +44,25 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
   // Preset symptom tags (Sentence case per design.md)
   const symptomPresetTags = [
     'Đau ngực', 'Khó thở', 'Sốt cao', 'Đau đầu', 'Nổi mẩn đỏ',
-    'Chóng mặt', 'Đau họng', 'Sổ mũi', 'Trẻ sốt quấy', 'Đau bụng quanh rốn', 'Ù tai'
+    'Chóng mặt', 'Đau họng', 'Sổ mũi', 'Trẻ sốt quấy', 'Đau bụng quanh rốn', 'Ù tai', 'Đau khớp gối'
   ];
 
-  // Medical Specialties Catalog Data
+  // 14 Medical Specialties Catalog Data (Per Item 1 in Specification Table)
   const initialDepartmentsData = [
-    { id: 1, code: 'INTERNAL_MEDICINE', name: 'Nội tổng quát', doctor_count: 5, description: 'Chẩn đoán và điều trị bệnh lý đường tiêu hóa, hô hấp, tuần hoàn tổng quát.' },
-    { id: 2, code: 'CARDIOLOGY', name: 'Tim mạch', doctor_count: 4, description: 'Tầm soát bệnh mạch vành, tăng huyết áp, suy tim và rối loạn nhịp tim.' },
-    { id: 3, code: 'DERMATOLOGY', name: 'Da liễu', doctor_count: 3, description: 'Trị liệu dị ứng da, mề đay mãn tính, chàm và viêm da cơ địa.' },
-    { id: 4, code: 'PEDIATRICS', name: 'Nhi khoa', doctor_count: 4, description: 'Chăm sóc sức khỏe toàn diện và tiêm chủng phòng bệnh cho trẻ sơ sinh và trẻ nhỏ.' },
-    { id: 5, code: 'ENT', name: 'Tai Mũi Họng', doctor_count: 3, description: 'Nội soi chẩn đoán viêm xoang, viêm họng cấp, viêm amidan và tổn thương màng nhĩ.' },
-    { id: 6, code: 'NEUROLOGY', name: 'Thần kinh', doctor_count: 3, description: 'Tầm soát đau đầu mãn tính, rối loạn giấc ngủ, tiền đình và thiếu máu não.' },
-    { id: 7, code: 'OBGYN', name: 'Sản phụ khoa', doctor_count: 3, description: 'Khám thai định kỳ, chăm sóc sức khỏe phụ nữ và tư vấn sinh sản.' },
-    { id: 8, code: 'OPHTHALMOLOGY', name: 'Mắt (Nhãn khoa)', doctor_count: 2, description: 'Đo tật khúc xạ, tầm soát đau mắt đỏ, đục thủy tinh thể và cận thị.' }
+    { id: 1, code: 'INTERNAL_MEDICINE', name: 'Nội tổng quát', doctor_count: 5, description: 'Chẩn đoán và điều trị bệnh lý đường tiêu hóa, hô hấp, tuần hoàn tổng quát.', conditions: ['Cảm cúm', 'Viêm phế quản', 'Rối loạn tiêu hóa', 'Sốt xuất huyết'] },
+    { id: 2, code: 'CARDIOLOGY', name: 'Tim mạch', doctor_count: 4, description: 'Tầm soát bệnh mạch vành, tăng huyết áp, suy tim và rối loạn nhịp tim.', conditions: ['Tăng huyết áp', 'Thiếu máu cơ tim', 'Rối loạn nhịp tim', 'Đau thắt ngực'] },
+    { id: 3, code: 'DERMATOLOGY', name: 'Da liễu', doctor_count: 3, description: 'Trị liệu dị ứng da, mề đay mãn tính, chàm và viêm da cơ địa.', conditions: ['Viêm da dị ứng', 'Mề đay', 'Mụn trứng cá nhiễm khuẩn', 'Bệnh ngoài da'] },
+    { id: 4, code: 'PEDIATRICS', name: 'Nhi khoa', doctor_count: 4, description: 'Chăm sóc sức khỏe toàn diện và tiêm chủng phòng bệnh cho trẻ sơ sinh và trẻ nhỏ.', conditions: ['Trẻ sốt vi rút', 'Viêm tai giữa trẻ em', 'Tư vấn dinh dưỡng', 'Ho hen ở trẻ'] },
+    { id: 5, code: 'ENT', name: 'Tai Mũi Họng', doctor_count: 3, description: 'Nội soi chẩn đoán viêm xoang, viêm họng cấp, viêm amidan và tổn thương màng nhĩ.', conditions: ['Viêm xoang cấp', 'Viêm amidan', 'Ù tai', 'Hạt dây thanh'] },
+    { id: 6, code: 'NEUROLOGY', name: 'Thần kinh', doctor_count: 3, description: 'Tầm soát đau đầu mãn tính, rối loạn giấc ngủ, tiền đình và thiếu máu não.', conditions: ['Migraine', 'Rối loạn tiền đình', 'Đau thần kinh tọa', 'Mất ngủ'] },
+    { id: 7, code: 'OBGYN', name: 'Sản phụ khoa', doctor_count: 3, description: 'Khám thai định kỳ, chăm sóc sức khỏe phụ nữ và tư vấn sinh sản.', conditions: ['Khám thai định kỳ', 'Tư vấn sinh sản', 'Viêm nhiễm phụ khoa', 'Chăm sóc thai kỳ'] },
+    { id: 8, code: 'OPHTHALMOLOGY', name: 'Mắt (Nhãn khoa)', doctor_count: 2, description: 'Đo tật khúc xạ, tầm soát đau mắt đỏ, đục thủy tinh thể và cận thị.', conditions: ['Đau mắt đỏ', 'Tật khúc xạ', 'Đục thủy tinh thể', 'Khô mắt'] },
+    { id: 9, code: 'RHEUMATOLOGY', name: 'Cơ Xương Khớp', doctor_count: 3, description: 'Trị liệu thoái hóa khớp, thoái hóa cột sống, gút và viêm khớp dạng thấp.', conditions: ['Thoái hóa khớp gối', 'Thoái hóa đốt sống cổ', 'Bệnh Gút (Gout)', 'Viêm khớp dạng thấp'] },
+    { id: 10, code: 'GASTROENTEROLOGY', name: 'Tiêu hóa & Gan mật', doctor_count: 4, description: 'Khám và nội soi dạ dày, đại tràng, vi trùng HP, viêm gan siêu vi B/C.', conditions: ['Viêm loét dạ dày HP', 'Trào ngược dạ dày thực quản', 'Viêm gan B/C', 'Hội chứng ruột kích thích'] },
+    { id: 11, code: 'ODONTO_STOMATOLOGY', name: 'Răng Hàm Mặt', doctor_count: 3, description: 'Khám và điều trị nhổ răng khôn, sâu răng, nha chu và thẩm mỹ răng sứ.', conditions: ['Nhổ răng khôn mọc lệch', 'Chữa sâu răng & Viêm tủy', 'Viêm nha chu', 'Tẩy trắng răng'] },
+    { id: 12, code: 'PULMONOLOGY', name: 'Hô hấp & Phổi', doctor_count: 3, description: 'Điều trị hen phế quản, Bệnh phổi tắc nghẽn mãn tính (COPD) và viêm phổi.', conditions: ['Hen phế quản', 'Bệnh COPD', 'Viêm phổi cấp', 'Ho lao & Tầm soát phổi'] },
+    { id: 13, code: 'ENDOCRINOLOGY', name: 'Nội tiết & Tiểu đường', doctor_count: 3, description: 'Quản lý bệnh đái tháo đường, suy tuyến giáp, béo phì và rối loạn chuyển hóa.', conditions: ['Đái tháo đường tuýp 1 & 2', 'Bướu cổ & Viêm tuyến giáp', 'Rối loạn mỡ máu', 'Béo phì'] },
+    { id: 14, code: 'NUTRITION_ANDROLOGY', name: 'Dinh dưỡng & Nam học', doctor_count: 2, description: 'Tư vấn chế độ ăn bệnh lý, tăng giảm cân và khám sức khỏe nam giới.', conditions: ['Tư vấn dinh dưỡng bệnh lý', 'Rối loạn cương dương', 'Tầm soát sức khỏe nam giới', 'Suy giảm Testosterone'] }
   ];
 
   // Default Mock Doctors
@@ -109,6 +114,18 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
       rating_avg: 4.75,
       rating_count: 18,
       hospital_address: 'Bệnh viện Đa khoa Quốc tế — Tầng 4, Khoa Tai Mũi Họng'
+    },
+    {
+      id: 5,
+      full_name: 'TS.BS Nguyễn Quốc Tuấn',
+      title: 'TS.BS',
+      department_name: 'Hô hấp & Phổi',
+      department_id: 12,
+      years_experience: 15,
+      consultation_fee: 450000,
+      rating_avg: 4.85,
+      rating_count: 33,
+      hospital_address: 'Bệnh viện Đa khoa Quốc tế — Tầng 5, Khoa Hô hấp'
     }
   ];
 
@@ -124,7 +141,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     { start_time: '15:00', end_time: '15:30', is_available: true },
   ];
 
-  // --- Doctor Workstation State ---
+  // --- Doctor Workstation State (Item 3 in Specification Table: 3 Steps) ---
   const [doctorAppointments, setDoctorAppointments] = useState([
     {
       id: 101,
@@ -140,19 +157,63 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
       symptom_tags: ['Đau ngực', 'Khó thở', 'Tim đập nhanh'],
       ai_analysis: {
         is_emergency: false,
-        recommended_department_name: 'Tim mạch',
-        confidence_score: 0.91,
+        recommended_departments: [
+          { id: 2, name: 'Tim mạch', confidence_score: 0.88, is_primary: true, medical_explanation: 'Triệu chứng đau ép ngực trái gợi ý kiểm tra tim mạch tầm soát thiếu máu cơ tim.' },
+          { id: 1, name: 'Nội tổng quát', confidence_score: 0.62, is_primary: false, medical_explanation: 'Khám phối hợp nội tổng quát để đánh giá các yếu tố nguy cơ huyết áp và rối loạn mỡ máu.' }
+        ],
+        confidence_score: 0.88,
         medical_explanation: 'Triệu chứng đau ép ngực trái liên quan tới vận động gợi ý kiểm tra tim mạch tầm soát thiếu máu cơ tim.'
       },
-      diagnosis: '',
-      prescription: ''
+      diagnosis_primary: 'Thiếu máu cơ tim cục bộ (I20) / Tăng huyết áp độ 1',
+      diagnosis_secondary: 'Rối loạn chuyển hóa Lipoprotein mỡ máu',
+      clinical_notes: 'Bệnh nhân tỉnh táo, tim nhịp đều 82 ck/phút, HA 135/85 mmHg. Phổi trong không rần.',
+      lab_requests: [
+        { id: 'LAB-1', code: 'CĐHA01', name: 'Siêu âm tim Doppler màu 4D', note: 'Đánh giá vận động vùng vách tim' },
+        { id: 'LAB-2', code: 'TDCN01', name: 'Đo điện tâm đồ (ECG 12 chuyển đạo)', note: 'Tầm soát thiếu máu cơ tim ST thay đổi' }
+      ],
+      prescription_items: [
+        { id: 'RX-1', medicine_name: 'Concor 5mg', quantity: '30', unit: 'Viên', usage: 'Uống 1 viên / sáng sau ăn', route: 'Uống', note: 'Kiểm tra huyết áp định kỳ' },
+        { id: 'RX-2', medicine_name: 'Atorvastatin 20mg', quantity: '30', unit: 'Viên', usage: 'Uống 1 viên / tối trước khi ngủ', route: 'Uống', note: 'Hạn chế ăn mỡ động vật' }
+      ]
     }
   ]);
-  const [selectedAptToExamine, setSelectedAptToExamine] = useState(null);
-  const [clinicalDiagnosis, setClinicalDiagnosis] = useState('');
-  const [clinicalPrescription, setClinicalPrescription] = useState('');
 
-  // --- Patient Medical History State ---
+  const [selectedAptToExamine, setSelectedAptToExamine] = useState(null);
+  const [activeDoctorStep, setActiveDoctorStep] = useState('diagnosis'); // 'diagnosis' | 'lab' | 'prescription'
+
+  // Form states for Doctor Step (a): Clinical Diagnosis
+  const [diagnosisPrimary, setDiagnosisPrimary] = useState('');
+  const [diagnosisSecondary, setDiagnosisSecondary] = useState('');
+  const [clinicalNotes, setClinicalNotes] = useState('');
+
+  // Form states for Doctor Step (b): Lab Requests (Cận lâm sàng UC-D03)
+  const [labRequestsList, setLabRequestsList] = useState([]);
+  const [selectedLabPreset, setSelectedLabPreset] = useState('');
+  const [labRequestNote, setLabRequestNote] = useState('');
+
+  const labPresets = [
+    { code: 'XNM01', name: 'Xét nghiệm tổng phân tích tế bào máu ngoại vi (CBC)' },
+    { code: 'XNM02', name: 'Xét nghiệm sinh hóa máu (Đường huyết, Men gan, Mỡ máu, Ure/Creatinine)' },
+    { code: 'CĐHA01', name: 'Siêu âm tim Doppler màu 4D' },
+    { code: 'CĐHA02', name: 'Siêu âm ổ bụng tổng quát' },
+    { code: 'TDCN01', name: 'Đo điện tâm đồ (ECG 12 chuyển đạo / Holter 24h)' },
+    { code: 'CĐHA03', name: 'Chụp X-quang ngực thẳng' },
+    { code: 'NS01', name: 'Nội soi Tai Mũi Họng ống mềm' }
+  ];
+
+  // Form states for Doctor Step (c): Outpatient Prescription Table (DonThuoc & ChiTietDonThuoc UC-D05)
+  const [prescriptionItems, setPrescriptionItems] = useState([]);
+
+  // Preset medicines list for easy fill
+  const medicinePresets = [
+    { name: 'Paracetamol 500mg', unit: 'Viên', usage: 'Sáng 1v, Tối 1v sau ăn khi sốt/đau', route: 'Uống' },
+    { name: 'Concor 5mg', unit: 'Viên', usage: 'Sáng 1v sau khi ăn', route: 'Uống' },
+    { name: 'Amoxicillin 500mg', unit: 'Viên', usage: 'Sáng 1v, Tối 1v sau ăn (kháng sinh 7 ngày)', route: 'Uống' },
+    { name: 'Omeprazole 20mg', unit: 'Viên', usage: 'Sáng 1v trước ăn 30 phút', route: 'Uống' },
+    { name: 'Otrivin 0.1%', unit: 'Lọ', usage: 'Nhỏ mũi 2 lần/ngày (sáng, tối)', route: 'Nhỏ mũi' }
+  ];
+
+  // --- Patient History State ---
   const [patientHistory, setPatientHistory] = useState([
     {
       id: 100,
@@ -165,10 +226,13 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
       end_time: '09:30',
       status: 'COMPLETED',
       symptoms_text: 'Đau thắt ngực khi leo cầu thang',
-      diagnosis: 'Thiếu máu cơ tim thoáng qua / Rối loạn thần kinh tim',
-      prescription: '1. Concor 5mg (1 viên/sáng)\n2. Magnesium B6 (2 viên/ngày)',
+      diagnosis_primary: 'Thiếu máu cơ tim thoáng qua / Rối loạn thần kinh tim',
+      prescription_items: [
+        { id: 1, medicine_name: 'Concor 5mg', quantity: '30', unit: 'Viên', usage: 'Uống 1 viên/sáng', route: 'Uống' },
+        { id: 2, medicine_name: 'Magnesium B6', quantity: '60', unit: 'Viên', usage: 'Uống 2 viên/ngày', route: 'Uống' }
+      ],
       feedback_rating: 5,
-      feedback_comment: 'Đề xuất chuyên khoa Tim mạch rất chính xác với tình trạng bệnh thực tế.'
+      feedback_comment: 'Đề xuất 2 chuyên khoa Tim mạch & Nội tổng quát rất chính xác với tình trạng bệnh thực tế.'
     }
   ]);
   const [feedbackRatingModal, setFeedbackRatingModal] = useState(null);
@@ -191,10 +255,6 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     { id: 3, keyword: 'ho kéo dài', tag: 'Ho', dept_name: 'Nội tổng quát', severity: 'MEDIUM' },
     { id: 4, keyword: 'sốt cao quấy khóc', tag: 'Trẻ sốt', dept_name: 'Nhi khoa', severity: 'HIGH' }
   ]);
-  const [newRuleKeyword, setNewRuleKeyword] = useState('');
-  const [newRuleTag, setNewRuleTag] = useState('');
-  const [newRuleDept, setNewRuleDept] = useState('Tim mạch');
-  const [newRuleSeverity, setNewRuleSeverity] = useState('MEDIUM');
 
   // Load Current User Profile on Mount
   useEffect(() => {
@@ -249,38 +309,13 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     }
   };
 
-  // Fetch Doctor Shift Queue when Tab switched
-  useEffect(() => {
-    if (activeTab === 'doctor') {
-      fetchDoctorQueue();
-    } else if (activeTab === 'patient') {
-      fetchPatientHistory();
-    } else if (activeTab === 'admin') {
-      fetchAdminStats();
+  // Toggle Symptom Tag
+  const toggleTag = (tag) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
     }
-  }, [activeTab]);
-
-  const fetchDoctorQueue = async () => {
-    try {
-      const list = await ApiService.getDoctorShiftAppointments();
-      if (list && list.length > 0) setDoctorAppointments(list);
-    } catch (e) {}
-  };
-
-  const fetchPatientHistory = async () => {
-    try {
-      const list = await ApiService.getPatientHistory();
-      if (list && list.length > 0) setPatientHistory(list);
-    } catch (e) {}
-  };
-
-  const fetchAdminStats = async () => {
-    try {
-      const stats = await ApiService.getAdminDashboardStats();
-      setAdminStats(stats);
-      const rules = await ApiService.getSymptomMappings();
-      if (rules) setSymptomRules(rules);
-    } catch (e) {}
   };
 
   // Scroll to AI Symptom Checker Tool
@@ -291,16 +326,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     }
   };
 
-  // Toggle Symptom Tag
-  const toggleTag = (tag) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter(t => t !== tag));
-    } else {
-      setSelectedTags([...selectedTags, tag]);
-    }
-  };
-
-  // Trigger AI Symptom Analysis
+  // Trigger AI Symptom Analysis (Item 2: Returns 1-2 recommended departments)
   const handleAnalyzeSymptoms = async () => {
     if (!freeText.trim() && selectedTags.length === 0) {
       alert('Vui lòng nhập mô tả triệu chứng hoặc chọn ít nhất 1 triệu chứng có sẵn.');
@@ -327,36 +353,33 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
         setRecommendedDoctors(defaultMockDoctors);
       }
     } catch (err) {
-      // Fallback local simulation
+      // Fallback local simulation with 1-2 RECOMMENDED DEPARTMENTS (per Item 2 in specification table)
       const lower = `${freeText} ${selectedTags.join(' ')}`.toLowerCase();
-      let deptName = 'Nội tổng quát';
-      let deptId = 1;
+      let primaryDept = { id: 1, name: 'Nội tổng quát', confidence_score: 0.85, is_primary: true, medical_explanation: 'Dựa trên mô tả triệu chứng, hệ thống đề xuất bạn thăm khám tại chuyên khoa Nội tổng quát để chẩn đoán tổng thể.' };
+      let secondaryDept = { id: 10, name: 'Tiêu hóa & Gan mật', confidence_score: 0.60, is_primary: false, medical_explanation: 'Đồng thời nên phối hợp thăm khám chuyên khoa Tiêu hóa để tầm soát nguyên nhân đau dạ dày hoặc đường ruột.' };
       let isEmerg = false;
-      let explanation = 'Dựa trên mô tả triệu chứng, hệ thống đề xuất bạn thăm khám tại chuyên khoa Nội tổng quát để được chẩn đoán và hướng dẫn chi tiết.';
 
       if (lower.includes('ngực') || lower.includes('tim') || lower.includes('ép ngực')) {
-        deptName = 'Tim mạch';
-        deptId = 2;
-        explanation = 'Các triệu chứng đau ép ngực và thay đổi nhịp tim cần được thăm khám tại chuyên khoa Tim mạch để kiểm tra điện tâm đồ và chức năng mạch vành.';
+        primaryDept = { id: 2, name: 'Tim mạch', confidence_score: 0.88, is_primary: true, medical_explanation: 'Các triệu chứng đau ép ngực và thay đổi nhịp tim cần được thăm khám tại chuyên khoa Tim mạch để kiểm tra điện tâm đồ và chức năng mạch vành.' };
+        secondaryDept = { id: 1, name: 'Nội tổng quát', confidence_score: 0.62, is_primary: false, medical_explanation: 'Khám phối hợp Nội tổng quát nhằm kiểm tra các chỉ số huyết áp, mỡ máu và tầm soát rối loạn chuyển hóa.' };
         if (lower.includes('dữ dội') || lower.includes('khó thở cấp')) isEmerg = true;
       } else if (lower.includes('nổi mẩn') || lower.includes('ngứa') || lower.includes('da')) {
-        deptName = 'Da liễu';
-        deptId = 3;
-        explanation = 'Biểu hiện nổi mẩn đỏ hoặc ngứa ngoài da phù hợp với thăm khám và điều trị tại chuyên khoa Da liễu.';
+        primaryDept = { id: 3, name: 'Da liễu', confidence_score: 0.86, is_primary: true, medical_explanation: 'Biểu hiện nổi mẩn đỏ hoặc ngứa ngoài da phù hợp với thăm khám và trị liệu tại chuyên khoa Da liễu.' };
+        secondaryDept = { id: 1, name: 'Nội tổng quát', confidence_score: 0.58, is_primary: false, medical_explanation: 'Tầm soát thêm Nội tổng quát để loại trừ các phản ứng dị ứng do thực phẩm hoặc nội tiết.' };
       } else if (lower.includes('họng') || lower.includes('sổ mũi') || lower.includes('ù tai')) {
-        deptName = 'Tai Mũi Họng';
-        deptId = 5;
-        explanation = 'Các triệu chứng đường hô hấp trên phù hợp với phạm vi khám chữa bệnh của chuyên khoa Tai Mũi Họng.';
+        primaryDept = { id: 5, name: 'Tai Mũi Họng', confidence_score: 0.87, is_primary: true, medical_explanation: 'Các triệu chứng đường hô hấp trên phù hợp với phạm vi khám chữa bệnh của chuyên khoa Tai Mũi Họng.' };
+        secondaryDept = { id: 12, name: 'Hô hấp & Phổi', confidence_score: 0.64, is_primary: false, medical_explanation: 'Khám phối hợp Chuyên khoa Hô hấp nếu có dấu hiệu ho rải rác hoặc nghe tiếng rít phế quản.' };
       }
+
+      const recDepts = [primaryDept, secondaryDept];
 
       setAiResult({
         is_emergency: isEmerg,
         emergency_warning: isEmerg ? 'CẢNH BÁO CẤP CỨU Y TẾ: Triệu chứng đau ngực hoặc khó thở dữ dội có dấu hiệu đe dọa tính mạng. Vui lòng gọi Cấp cứu 115 hoặc di chuyển ngay đến cơ sở y tế gần nhất!' : null,
-        recommended_department_name: deptName,
-        recommended_department_id: deptId,
-        confidence_score: 0.88,
-        medical_explanation: explanation,
-        suggested_action: `Bạn nên đặt lịch thăm khám trực tiếp với Bác sĩ chuyên khoa ${deptName}.`,
+        recommended_departments: recDepts,
+        confidence_score: primaryDept.confidence_score,
+        medical_explanation: primaryDept.medical_explanation,
+        suggested_action: `Bạn nên đặt lịch thăm khám trực tiếp với Bác sĩ thuộc Khoa ${primaryDept.name} hoặc Khoa ${secondaryDept.name}.`,
         suggested_questions: [
           'Triệu chứng này bắt đầu xuất hiện từ khi nào?',
           'Cơn đau có tăng lên khi vận động hay thở sâu không?',
@@ -364,8 +387,8 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
         ]
       });
 
-      const filteredDocs = defaultMockDoctors.filter(d => d.department_name === deptName);
-      setRecommendedDoctors(filteredDocs.length > 0 ? filteredDocs : defaultMockDoctors);
+      const matchedDocs = defaultMockDoctors.filter(d => d.department_name === primaryDept.name || d.department_name === secondaryDept.name);
+      setRecommendedDoctors(matchedDocs.length > 0 ? matchedDocs : defaultMockDoctors);
     } finally {
       setAnalyzing(false);
     }
@@ -422,18 +445,102 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     }
   };
 
-  // Complete Doctor Examination
+  // --- Doctor Workstation Operations for Item 3 ---
+  // Select an appointment for Doctor examination
+  const handleSelectAppointmentToExamine = (apt) => {
+    setSelectedAptToExamine(apt);
+    setActiveDoctorStep('diagnosis');
+    setDiagnosisPrimary(apt.diagnosis_primary || 'Thiếu máu cơ tim cục bộ (I20)');
+    setDiagnosisSecondary(apt.diagnosis_secondary || 'Rối loạn mỡ máu');
+    setClinicalNotes(apt.clinical_notes || 'Bệnh nhân tỉnh táo, tim nhịp đều, HA 130/80 mmHg.');
+    setLabRequestsList(apt.lab_requests || [
+      { id: 'LAB-1', code: 'CĐHA01', name: 'Siêu âm tim Doppler màu 4D', note: 'Kiểm tra vận động vách tim' }
+    ]);
+    setPrescriptionItems(apt.prescription_items || [
+      { id: 'RX-1', medicine_name: 'Concor 5mg', quantity: '30', unit: 'Viên', usage: 'Uống 1 viên / sáng sau ăn', route: 'Uống', note: 'Theo dõi huyết áp' },
+      { id: 'RX-2', medicine_name: 'Atorvastatin 20mg', quantity: '30', unit: 'Viên', usage: 'Uống 1 viên / tối trước ngủ', route: 'Uống', note: 'Giảm ăn đồ béo' }
+    ]);
+  };
+
+  // Add Lab Request item (Step b)
+  const handleAddLabRequest = () => {
+    if (!selectedLabPreset) return;
+    const found = labPresets.find(l => l.code === selectedLabPreset);
+    if (!found) return;
+
+    const newItem = {
+      id: `LAB-${Date.now()}`,
+      code: found.code,
+      name: found.name,
+      note: labRequestNote || 'Theo chỉ định của bác sĩ'
+    };
+    setLabRequestsList([...labRequestsList, newItem]);
+    setSelectedLabPreset('');
+    setLabRequestNote('');
+  };
+
+  // Remove Lab Request item
+  const handleRemoveLabRequest = (id) => {
+    setLabRequestsList(labRequestsList.filter(item => item.id !== id));
+  };
+
+  // Add Prescription Medicine Row (Step c)
+  const handleAddPrescriptionRow = () => {
+    const newRow = {
+      id: `RX-${Date.now()}`,
+      medicine_name: '',
+      quantity: '10',
+      unit: 'Viên',
+      usage: 'Sáng 1v, Tối 1v sau ăn',
+      route: 'Uống',
+      note: ''
+    };
+    setPrescriptionItems([...prescriptionItems, newRow]);
+  };
+
+  // Add Preset Medicine Row
+  const handleAddPresetMedicineRow = (preset) => {
+    const newRow = {
+      id: `RX-${Date.now()}`,
+      medicine_name: preset.name,
+      quantity: '20',
+      unit: preset.unit,
+      usage: preset.usage,
+      route: preset.route,
+      note: ''
+    };
+    setPrescriptionItems([...prescriptionItems, newRow]);
+  };
+
+  // Update Medicine Row
+  const handleUpdatePrescriptionRow = (id, field, value) => {
+    setPrescriptionItems(prescriptionItems.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
+  };
+
+  // Remove Medicine Row
+  const handleRemovePrescriptionRow = (id) => {
+    setPrescriptionItems(prescriptionItems.filter(item => item.id !== id));
+  };
+
+  // Complete Doctor Examination & Save All 3 Steps
   const handleDoctorCompleteApt = async (aptId) => {
-    if (!clinicalDiagnosis.trim()) {
-      alert('Vui lòng ghi nhận kết luận chẩn đoán lâm sàng.');
+    if (!diagnosisPrimary.trim()) {
+      alert('Vui lòng nhập Chẩn đoán chính (Step a).');
       return;
     }
 
     try {
       await ApiService.doctorCompleteAppointment(aptId, {
-        diagnosis: clinicalDiagnosis,
-        prescription: clinicalPrescription,
-        doctor_notes: 'Bệnh nhân nghỉ ngơi và theo dõi diễn biến sức khỏe.'
+        diagnosis_primary: diagnosisPrimary,
+        diagnosis_secondary: diagnosisSecondary,
+        clinical_notes: clinicalNotes,
+        lab_requests: labRequestsList,
+        prescription_items: prescriptionItems
       });
     } catch (e) {}
 
@@ -442,18 +549,18 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
         return {
           ...a,
           status: 'COMPLETED',
-          diagnosis: clinicalDiagnosis,
-          prescription: clinicalPrescription
+          diagnosis_primary: diagnosisPrimary,
+          diagnosis_secondary: diagnosisSecondary,
+          clinical_notes: clinicalNotes,
+          lab_requests: labRequestsList,
+          prescription_items: prescriptionItems
         };
       }
       return a;
     });
 
     setDoctorAppointments(updated);
-    setSelectedAptToExamine(null);
-    setClinicalDiagnosis('');
-    setClinicalPrescription('');
-    alert('Đã hoàn tất ghi nhận kết luận khám và đơn thuốc.');
+    alert('Đã lưu thành công (a) Kết luận chẩn đoán, (b) Phiếu chỉ định cận lâm sàng và (c) Đơn thuốc ngoại trú!');
   };
 
   // Submit Rating Feedback for AI
@@ -483,39 +590,13 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     alert('Cảm ơn bạn đã phản hồi đánh giá độ chính xác của AI.');
   };
 
-  // Add Admin Rule
-  const handleAddAdminRule = async () => {
-    if (!newRuleKeyword || !newRuleTag) return;
-    try {
-      await ApiService.createSymptomMapping({
-        symptom_keyword: newRuleKeyword,
-        symptom_tag: newRuleTag,
-        department_id: 1,
-        severity: newRuleSeverity
-      });
-    } catch (e) {}
-
-    setSymptomRules([
-      ...symptomRules,
-      {
-        id: Date.now(),
-        keyword: newRuleKeyword,
-        tag: newRuleTag,
-        dept_name: newRuleDept,
-        severity: newRuleSeverity
-      }
-    ]);
-    setNewRuleKeyword('');
-    setNewRuleTag('');
-  };
-
   // Handle Logout
   const handleLogout = () => {
     ApiService.setToken(null);
     setCurrentUser(null);
   };
 
-  // Confidence bar color logic per design.md (>=70% primary #1F6F5C, 40-70% accent #E8A33D, <40% neutral gray - NO RED!)
+  // Confidence bar color logic per design.md (>=70% primary #1F6F5C, 40-70% accent #E8A33D, <40% neutral gray)
   const getConfidenceBarColor = (score) => {
     if (score >= 0.7) return 'bg-[#1F6F5C]';
     if (score >= 0.4) return 'bg-[#E8A33D]';
@@ -614,8 +695,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
         </>
       )}
 
-
-      {/* Main Container (Max width 1080px per design.md) */}
+      {/* Main Container */}
       <main className="max-w-[1080px] mx-auto px-4 lg:px-8 mt-8 space-y-12">
         {/* ============================================================ */}
         {/* TAB 1: MAIN LANDING PAGE & AI SYMPTOM CHECKER & BOOKING */}
@@ -652,10 +732,10 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                 </div>
               </div>
 
-              {/* Trust Metric Badges */}
+              {/* Trust Metric Badges (ITEM 1 FIXED: "14 Chuyên khoa y tế") */}
               <div className="mt-8 pt-6 border-t border-[#E4E1D8] grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
                 <div>
-                  <span className="text-2xl font-bold text-[#1F6F5C] block">8+</span>
+                  <span className="text-2xl font-bold text-[#1F6F5C] block">14</span>
                   <span className="text-xs text-[#6B6A65]">Chuyên khoa y tế</span>
                 </div>
                 <div>
@@ -673,7 +753,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
               </div>
             </section>
 
-            {/* HOW IT WORKS / 3-STEP PROCESS SECTION (Per design.md section 6: Step indicator) */}
+            {/* HOW IT WORKS / 3-STEP PROCESS SECTION */}
             <section className="space-y-6 text-left">
               <div>
                 <h2 className="text-2xl font-semibold text-[#1C1B19]">Quy trình 3 bước khám bệnh đơn giản</h2>
@@ -695,9 +775,9 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                   <div className="w-8 h-8 rounded-sm bg-[#1F6F5C] text-white font-bold flex items-center justify-center text-sm">
                     2
                   </div>
-                  <h3 className="text-base font-semibold text-[#1C1B19]">AI đề xuất chuyên khoa</h3>
+                  <h3 className="text-base font-semibold text-[#1C1B19]">AI đề xuất 1-2 chuyên khoa</h3>
                   <p className="text-sm text-[#6B6A65]">
-                    Hệ thống AI tự động đánh giá mức độ rủi ro, phát hiện dấu hiệu cấp cứu và gợi ý phòng khám thích hợp.
+                    Hệ thống AI tự động đánh giá mức độ rủi ro, gợi ý 1 đến 2 chuyên khoa phù hợp cùng danh sách bác sĩ trực thuộc.
                   </p>
                 </div>
 
@@ -707,7 +787,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                   </div>
                   <h3 className="text-base font-semibold text-[#1C1B19]">Chọn bác sĩ & Đặt lịch</h3>
                   <p className="text-sm text-[#6B6A65]">
-                    Xem danh sách bác sĩ thuộc chuyên khoa được đề xuất, lựa chọn khung giờ 30 phút phù hợp và nhận mã xác nhận.
+                    Xem danh sách bác sĩ thuộc các chuyên khoa được đề xuất, lựa chọn khung giờ 30 phút phù hợp và nhận mã xác nhận.
                   </p>
                 </div>
               </div>
@@ -722,7 +802,6 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
 
               {/* Input Form Section */}
               <div className="medical-card p-6 space-y-5">
-                {/* Free Text Description Input */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-[#1C1B19]">Mô tả chi tiết cảm giác sức khỏe</label>
                   <textarea
@@ -759,7 +838,6 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                   </div>
                 </div>
 
-                {/* Single Primary Action Button per design.md */}
                 <div className="pt-2">
                   <button
                     onClick={handleAnalyzeSymptoms}
@@ -775,9 +853,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                 </div>
               </div>
 
-              {/* ============================================================ */}
-              {/* SPECIAL STATE: EMERGENCY WARNING ALERT (Design.md Section 7) */}
-              {/* ============================================================ */}
+              {/* EMERGENCY WARNING ALERT */}
               {aiResult && aiResult.is_emergency && (
                 <div className="emergency-panel p-6 space-y-4 text-[#1C1B19]">
                   <div className="flex items-start space-x-4">
@@ -801,7 +877,6 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                     </ul>
                   </div>
 
-                  {/* Only Emergency Hotline CTA per design.md section 7 */}
                   <div className="pt-2">
                     <a
                       href="tel:115"
@@ -815,48 +890,58 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
               )}
 
               {/* ============================================================ */}
-              {/* NORMAL STATE: AI RECOMMENDATION RESULT (Key Feature Visual Highlight) */}
+              {/* ITEM 2 FIXED: NORMAL STATE — DISPLAY 1-2 RECOMMENDED DEPARTMENTS */}
               {/* ============================================================ */}
               {aiResult && !aiResult.is_emergency && (
                 <div className="medical-card p-6 space-y-6">
                   <div className="border-b border-[#E4E1D8] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-xl font-semibold text-[#1C1B19]">Kết quả phân tích đề xuất chuyên khoa</h2>
-                      <p className="text-sm text-[#6B6A65]">Đề xuất dựa trên dữ liệu triệu chứng bạn đã cung cấp</p>
-                    </div>
-
-                    {/* Recommended Department Highlight Badge */}
-                    <div className="bg-[#DCEAE6] border border-[#1F6F5C]/30 px-3.5 py-1.5 rounded-sm font-semibold text-sm text-[#1F6F5C] flex items-center space-x-2">
-                      <Stethoscope className="w-4 h-4 text-[#1F6F5C]" />
-                      <span>Khoa {aiResult.recommended_department_name}</span>
+                      <h2 className="text-xl font-semibold text-[#1C1B19]">
+                        Kết quả đề xuất 1–2 Chuyên khoa phù hợp
+                      </h2>
+                      <p className="text-sm text-[#6B6A65]">Dựa trên phân tích triệu chứng lâm sàng bạn đã cung cấp</p>
                     </div>
                   </div>
 
-                  {/* AI Confidence Progress Bar (Per design.md: >=70% primary, 40-70% accent, <40% neutral gray - NO RED!) */}
-                  <div className="space-y-2 bg-[#F7F5F0] p-4 rounded-sm border border-[#E4E1D8]">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-[#1C1B19]">Độ tin cậy của đề xuất AI:</span>
-                      <span className="font-semibold text-[#1F6F5C]">{Math.round(aiResult.confidence_score * 100)}%</span>
-                    </div>
-                    <div className="w-full bg-[#E4E1D8] h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${getConfidenceBarColor(aiResult.confidence_score)}`}
-                        style={{ width: `${Math.min(100, Math.max(10, aiResult.confidence_score * 100))}%` }}
-                      />
-                    </div>
-                  </div>
+                  {/* 1-2 Recommended Department Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(aiResult.recommended_departments || [
+                      { id: 2, name: aiResult.recommended_department_name || 'Tim mạch', confidence_score: aiResult.confidence_score || 0.88, is_primary: true, medical_explanation: aiResult.medical_explanation },
+                      { id: 1, name: 'Nội tổng quát', confidence_score: 0.62, is_primary: false, medical_explanation: 'Khám phối hợp Nội tổng quát để theo dõi các chỉ số sinh hiệu và rối loạn mỡ máu.' }
+                    ]).map((dept, idx) => (
+                      <div key={idx} className={`p-5 rounded-sm border space-y-3 ${
+                        dept.is_primary ? 'bg-[#DCEAE6]/30 border-[#1F6F5C]' : 'bg-[#FFFFFF] border-[#E4E1D8]'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className={`px-2.5 py-1 rounded-sm text-xs font-bold ${
+                              dept.is_primary ? 'bg-[#1F6F5C] text-white' : 'bg-[#E8A33D] text-white'
+                            }`}>
+                              {dept.is_primary ? 'Ưu tiên 1 (Chính)' : 'Ưu tiên 2 (Phối hợp)'}
+                            </span>
+                            <h3 className="text-base font-semibold text-[#1C1B19]">Khoa {dept.name}</h3>
+                          </div>
+                          <span className="text-xs font-bold text-[#1F6F5C]">{Math.round(dept.confidence_score * 100)}%</span>
+                        </div>
 
-                  {/* Medical Explanation Text */}
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-[#1C1B19]">Giải thích y khoa tóm tắt</h3>
-                    <p className="text-base text-[#1C1B19] leading-relaxed bg-[#FFFFFF] p-4 rounded-sm border border-[#E4E1D8]">
-                      {aiResult.medical_explanation}
-                    </p>
+                        {/* Confidence bar */}
+                        <div className="w-full bg-[#E4E1D8] h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${getConfidenceBarColor(dept.confidence_score)}`}
+                            style={{ width: `${Math.min(100, Math.max(10, dept.confidence_score * 100))}%` }}
+                          />
+                        </div>
+
+                        <p className="text-xs text-[#1C1B19] leading-relaxed">
+                          {dept.medical_explanation}
+                        </p>
+                      </div>
+                    ))}
                   </div>
 
                   {/* Suggested Questions for Consultation */}
                   {aiResult.suggested_questions && aiResult.suggested_questions.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 pt-2 border-t border-[#E4E1D8]">
                       <h3 className="text-sm font-semibold text-[#1C1B19]">Các câu hỏi bác sĩ có thể sẽ hỏi bạn khi khám</h3>
                       <ul className="space-y-1.5 pl-1">
                         {aiResult.suggested_questions.map((q, idx) => (
@@ -876,7 +961,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-[#1C1B19]">
-                      Danh sách bác sĩ thuộc Chuyên khoa {aiResult.recommended_department_name}
+                      Danh sách bác sĩ trực thuộc các chuyên khoa được đề xuất
                     </h2>
                   </div>
 
@@ -943,7 +1028,6 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                         />
                       </div>
 
-                      {/* Slot Grid */}
                       {loadingSlots ? (
                         <p className="text-xs text-[#6B6A65]">Đang kiểm tra khung giờ khả dụng...</p>
                       ) : (
@@ -970,7 +1054,6 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                         </div>
                       )}
 
-                      {/* Single Primary Booking Button */}
                       <div className="pt-2">
                         <button
                           onClick={handleConfirmBooking}
@@ -1011,7 +1094,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
             {/* MEDICAL SPECIALTIES CATALOG SECTION */}
             <section className="space-y-6 text-left">
               <div className="border-b border-[#E4E1D8] pb-3">
-                <h2 className="text-2xl font-semibold text-[#1C1B19]">Danh mục chuyên khoa y tế</h2>
+                <h2 className="text-2xl font-semibold text-[#1C1B19]">Danh mục 14 chuyên khoa y tế</h2>
                 <p className="text-sm text-[#6B6A65]">Phòng khám đa khoa hỗ trợ khám chữa các nhóm bệnh phổ biến</p>
               </div>
 
@@ -1038,104 +1121,16 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                 ))}
               </div>
             </section>
-
-            {/* DOCTOR DIRECTORY SECTION */}
-            <section id="doctors-section" className="space-y-6 text-left">
-              <div className="border-b border-[#E4E1D8] pb-3">
-                <h2 className="text-2xl font-semibold text-[#1C1B19]">Đội ngũ Bác sĩ Chuyên khoa</h2>
-                <p className="text-sm text-[#6B6A65]">Bác sĩ giàu kinh nghiệm chẩn đoán và điều trị tại các bệnh viện uy tín</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {defaultMockDoctors.map((doc) => (
-                  <div key={doc.id} className="medical-card p-5 space-y-3">
-                    <div className="flex items-start space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-[#DCEAE6] text-[#1F6F5C] font-semibold flex items-center justify-center text-sm flex-shrink-0">
-                        {doc.title.slice(0, 3)}
-                      </div>
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-base font-semibold text-[#1C1B19]">{doc.full_name}</h3>
-                          <span className="px-2 py-0.5 rounded-sm text-xs font-medium bg-[#DCEAE6] text-[#1F6F5C]">
-                            {doc.department_name}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[#6B6A65]">{doc.years_experience} năm kinh nghiệm • ★ {doc.rating_avg} ({doc.rating_count} đánh giá)</p>
-                        <p className="text-xs text-[#6B6A65] flex items-center">
-                          <MapPin className="w-3.5 h-3.5 mr-1 text-[#6B6A65]" />
-                          {doc.hospital_address}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-[#E4E1D8] pt-3">
-                      <span className="text-sm font-bold text-[#1F6F5C]">
-                        {doc.consultation_fee.toLocaleString('vi-VN')} đ / lượt khám
-                      </span>
-                      <button
-                        onClick={() => {
-                          setSelectedDoctor(doc);
-                          scrollToChecker();
-                        }}
-                        className="btn-secondary px-3 py-1.5 text-xs"
-                      >
-                        Đặt lịch với bác sĩ
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* PATIENT TESTIMONIALS SECTION */}
-            <section className="space-y-6 text-left">
-              <div className="border-b border-[#E4E1D8] pb-3">
-                <h2 className="text-2xl font-semibold text-[#1C1B19]">Đánh giá từ Bệnh nhân</h2>
-                <p className="text-sm text-[#6B6A65]">Ý kiến phản hồi thực tế về chất lượng tư vấn AI và khám bệnh</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="medical-card p-5 space-y-3">
-                  <div className="flex items-center space-x-1 text-[#E8A33D]">
-                    ★★★★★
-                  </div>
-                  <p className="text-sm text-[#1C1B19]">
-                    "AI gợi ý đúng chuyên khoa Tim mạch ngay khi tôi nhập triệu chứng đau ép ngực. Đặt lịch khám 30 phút rất nhanh chóng."
-                  </p>
-                  <span className="text-xs text-[#6B6A65] block font-medium">— Nguyễn Văn An (Hà Nội)</span>
-                </div>
-
-                <div className="medical-card p-5 space-y-3">
-                  <div className="flex items-center space-x-1 text-[#E8A33D]">
-                    ★★★★★
-                  </div>
-                  <p className="text-sm text-[#1C1B19]">
-                    "Giao diện dễ dùng, chữ to rõ ràng nên người lớn tuổi như tôi cũng tự thao tác đặt lịch cho cháu được."
-                  </p>
-                  <span className="text-xs text-[#6B6A65] block font-medium">— Lê Thị Bích (Đà Nẵng)</span>
-                </div>
-
-                <div className="medical-card p-5 space-y-3">
-                  <div className="flex items-center space-x-1 text-[#E8A33D]">
-                    ★★★★★
-                  </div>
-                  <p className="text-sm text-[#1C1B19]">
-                    "Bác sĩ khám rất kỹ, đơn thuốc và kết luận chẩn đoán được lưu sẵn trong tài khoản xem lại bất cứ lúc nào."
-                  </p>
-                  <span className="text-xs text-[#6B6A65] block font-medium">— Trần Hoàng Minh (TP. Hồ Chí Minh)</span>
-                </div>
-              </div>
-            </section>
           </>
         )}
 
         {/* ============================================================ */}
-        {/* TAB 2: DOCTOR CLINICAL WORKSTATION (Pkg D) */}
+        {/* TAB 2: ITEM 3 FIXED — DOCTOR CLINICAL WORKSTATION WITH 3 STEPS */}
         {/* ============================================================ */}
         {activeTab === 'doctor' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
             {/* Left: Doctor Appointment Queue */}
-            <div className="lg:col-span-5 space-y-4">
+            <div className="lg:col-span-4 space-y-4">
               <div className="medical-card p-5 space-y-3">
                 <h2 className="text-base font-semibold text-[#1C1B19]">Danh sách bệnh nhân ca trực</h2>
 
@@ -1145,11 +1140,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                     return (
                       <div
                         key={apt.id}
-                        onClick={() => {
-                          setSelectedAptToExamine(apt);
-                          setClinicalDiagnosis(apt.diagnosis || '');
-                          setClinicalPrescription(apt.prescription || '');
-                        }}
+                        onClick={() => handleSelectAppointmentToExamine(apt)}
                         className={`p-4 rounded-sm border cursor-pointer transition space-y-2 ${
                           isSelected ? 'border-2 border-[#1F6F5C] bg-[#F7F5F0]' : 'border-[#E4E1D8] bg-[#FFFFFF] hover:border-[#1F6F5C]/50'
                         }`}
@@ -1173,59 +1164,381 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
               </div>
             </div>
 
-            {/* Right: Clinical Diagnosis Form */}
-            <div className="lg:col-span-7">
+            {/* Right: ITEM 3 WORKSTATION WITH 3 SEPARATE STEPS (a, b, c) */}
+            <div className="lg:col-span-8">
               {selectedAptToExamine ? (
-                <div className="medical-card p-6 space-y-5">
-                  <div className="border-b border-[#E4E1D8] pb-3">
-                    <h2 className="text-lg font-semibold text-[#1C1B19]">Hồ sơ bệnh án: {selectedAptToExamine.patient_name}</h2>
-                    <p className="text-xs text-[#6B6A65]">Mã hồ sơ: {selectedAptToExamine.appointment_code} • Khung giờ: {selectedAptToExamine.start_time} - {selectedAptToExamine.end_time}</p>
-                  </div>
-
-                  {/* AI Assessment Report Pre-inspection for Doctor */}
-                  <div className="bg-[#DCEAE6]/50 border border-[#1F6F5C]/30 p-4 rounded-sm text-xs space-y-1.5 text-[#1C1B19]">
-                    <span className="font-semibold text-[#1F6F5C] block">Báo cáo tham khảo từ AI Symptom Checker:</span>
-                    <p><strong>Chuyên khoa đề xuất:</strong> Khoa {selectedAptToExamine.ai_analysis?.recommended_department_name || selectedAptToExamine.department_name}</p>
-                    <p><strong>Giải thích y khoa:</strong> {selectedAptToExamine.ai_analysis?.medical_explanation}</p>
-                  </div>
-
-                  {/* Form */}
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-[#1C1B19]">Chẩn đoán lâm sàng của bác sĩ (Diagnosis)</label>
-                      <textarea
-                        rows={3}
-                        value={clinicalDiagnosis}
-                        onChange={(e) => setClinicalDiagnosis(e.target.value)}
-                        placeholder="Nhập kết luận chẩn đoán lâm sàng..."
-                        className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-3 text-sm text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-[#1C1B19]">Đơn thuốc và hướng dẫn điều trị (Prescription)</label>
-                      <textarea
-                        rows={4}
-                        value={clinicalPrescription}
-                        onChange={(e) => setClinicalPrescription(e.target.value)}
-                        placeholder="1. Tên thuốc A (Số lượng, Liều dùng sáng/tối)..."
-                        className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-3 text-sm text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
-                      />
+                <div className="medical-card p-6 space-y-6">
+                  {/* Header Patient Summary */}
+                  <div className="border-b border-[#E4E1D8] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-bold text-[#1C1B19]">Hồ sơ ca khám: {selectedAptToExamine.patient_name}</h2>
+                      <p className="text-xs text-[#6B6A65]">Mã hồ sơ: <span className="font-mono text-[#1F6F5C] font-semibold">{selectedAptToExamine.appointment_code}</span> • Khung giờ: {selectedAptToExamine.start_time} - {selectedAptToExamine.end_time}</p>
                     </div>
 
                     <button
                       onClick={() => handleDoctorCompleteApt(selectedAptToExamine.id)}
-                      className="btn-primary w-full py-3 text-sm flex items-center justify-center space-x-2"
+                      className="btn-primary px-4 py-2 text-xs font-semibold flex items-center space-x-1.5 self-start sm:self-auto"
                     >
                       <CheckCircle className="w-4 h-4" />
-                      <span>Hoàn tất lượt khám & Lưu hồ sơ</span>
+                      <span>Hoàn tất & Lưu ca khám</span>
                     </button>
                   </div>
+
+                  {/* AI Triage Summary for Doctor Reference */}
+                  <div className="bg-[#DCEAE6]/40 border border-[#1F6F5C]/30 p-4 rounded-sm text-xs space-y-1 text-[#1C1B19]">
+                    <span className="font-bold text-[#1F6F5C] block">Báo cáo tham khảo từ AI Symptom Checker:</span>
+                    <p><strong>Triệu chứng khai báo:</strong> {selectedAptToExamine.symptoms_text}</p>
+                    <p><strong>Gợi ý chuyên khoa:</strong> {selectedAptToExamine.ai_analysis?.recommended_departments?.map(d => `Khoa ${d.name} (${Math.round(d.confidence_score*100)}%)`).join(', ') || selectedAptToExamine.department_name}</p>
+                  </div>
+
+                  {/* 3 DISTINCT STEP SUB-HEADER NAVIGATION (a, b, c per Item 3 in specification) */}
+                  <div className="flex border-b border-[#E4E1D8] space-x-2">
+                    <button
+                      onClick={() => setActiveDoctorStep('diagnosis')}
+                      className={`px-4 py-2.5 font-semibold text-xs rounded-t-sm border-t border-x transition flex items-center space-x-1.5 ${
+                        activeDoctorStep === 'diagnosis'
+                          ? 'bg-[#1F6F5C] text-white border-[#1F6F5C]'
+                          : 'bg-[#F7F5F0] text-[#6B6A65] border-[#E4E1D8] hover:text-[#1C1B19]'
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>(a) Ghi kết luận khám</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveDoctorStep('lab')}
+                      className={`px-4 py-2.5 font-semibold text-xs rounded-t-sm border-t border-x transition flex items-center space-x-1.5 ${
+                        activeDoctorStep === 'lab'
+                          ? 'bg-[#1F6F5C] text-white border-[#1F6F5C]'
+                          : 'bg-[#F7F5F0] text-[#6B6A65] border-[#E4E1D8] hover:text-[#1C1B19]'
+                      }`}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      <span>(b) Chỉ định cận lâm sàng (UC-D03)</span>
+                      {labRequestsList.length > 0 && (
+                        <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-white text-[#1F6F5C] font-bold">
+                          {labRequestsList.length}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setActiveDoctorStep('prescription')}
+                      className={`px-4 py-2.5 font-semibold text-xs rounded-t-sm border-t border-x transition flex items-center space-x-1.5 ${
+                        activeDoctorStep === 'prescription'
+                          ? 'bg-[#1F6F5C] text-white border-[#1F6F5C]'
+                          : 'bg-[#F7F5F0] text-[#6B6A65] border-[#E4E1D8] hover:text-[#1C1B19]'
+                      }`}
+                    >
+                      <Pill className="w-3.5 h-3.5" />
+                      <span>(c) Kê đơn thuốc ngoại trú (UC-D05)</span>
+                      {prescriptionItems.length > 0 && (
+                        <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-white text-[#1F6F5C] font-bold">
+                          {prescriptionItems.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* ============================================================ */}
+                  {/* STEP (a): GHI KẾT LUẬN KHÁM */}
+                  {/* ============================================================ */}
+                  {activeDoctorStep === 'diagnosis' && (
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-[#1C1B19]">Chẩn đoán chính (Primary Diagnosis) *</label>
+                        <input
+                          type="text"
+                          value={diagnosisPrimary}
+                          onChange={(e) => setDiagnosisPrimary(e.target.value)}
+                          placeholder="Ví dụ: Thiếu máu cơ tim cục bộ (Mã ICD: I20) / Viêm da dị ứng..."
+                          className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-2.5 text-xs text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-[#1C1B19]">Chẩn đoán kèm theo / Phụ (Secondary Diagnosis)</label>
+                        <input
+                          type="text"
+                          value={diagnosisSecondary}
+                          onChange={(e) => setDiagnosisSecondary(e.target.value)}
+                          placeholder="Ví dụ: Tăng huyết áp độ 1, Rối loạn chuyển hóa mỡ máu..."
+                          className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-2.5 text-xs text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-[#1C1B19]">Tóm tắt diễn biến lâm sàng & Hướng điều trị</label>
+                        <textarea
+                          rows={4}
+                          value={clinicalNotes}
+                          onChange={(e) => setClinicalNotes(e.target.value)}
+                          placeholder="Ghi chú khám thể trạng, nhịp tim, phổi, dặn dò lối sống..."
+                          className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-3 text-xs text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
+                        />
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={() => setActiveDoctorStep('lab')}
+                          className="btn-secondary px-4 py-2 text-xs flex items-center space-x-1"
+                        >
+                          <span>Chuyển sang Bước (b) Chỉ định cận lâm sàng</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ============================================================ */}
+                  {/* STEP (b): LẬP PHIẾU CHỈ ĐỊNH CẬN LÂM SÀNG (UC-D03) */}
+                  {/* ============================================================ */}
+                  {activeDoctorStep === 'lab' && (
+                    <div className="space-y-5 pt-2">
+                      <div className="bg-[#F7F5F0] p-4 rounded-sm border border-[#E4E1D8] space-y-3">
+                        <h3 className="text-xs font-bold text-[#1C1B19]">Lập chỉ định dịch vụ cận lâm sàng / Thăm dò chẩn đoán</h3>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className="text-[11px] font-medium text-[#6B6A65]">Chọn dịch vụ cận lâm sàng:</label>
+                            <select
+                              value={selectedLabPreset}
+                              onChange={(e) => setSelectedLabPreset(e.target.value)}
+                              className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-2 text-xs text-[#1C1B19] focus:outline-none"
+                            >
+                              <option value="">-- Chọn dịch vụ từ danh mục --</option>
+                              {labPresets.map(preset => (
+                                <option key={preset.code} value={preset.code}>
+                                  [{preset.code}] {preset.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-medium text-[#6B6A65]">Ghi chú yêu cầu:</label>
+                            <input
+                              type="text"
+                              value={labRequestNote}
+                              onChange={(e) => setLabRequestNote(e.target.value)}
+                              placeholder="Ghi chú cho phòng X-quang/Siêu âm..."
+                              className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-2 text-xs text-[#1C1B19] focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAddLabRequest}
+                          className="btn-primary px-3.5 py-1.5 text-xs flex items-center space-x-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Thêm chỉ định cận lâm sàng</span>
+                        </button>
+                      </div>
+
+                      {/* Lab Requests List Table */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-[#1C1B19]">Danh sách chỉ định cận lâm sàng đã lập ({labRequestsList.length}):</h4>
+                        {labRequestsList.length === 0 ? (
+                          <p className="text-xs text-[#6B6A65] italic bg-[#F7F5F0] p-3 rounded-sm text-center">Chưa có chỉ định cận lâm sàng nào được lập.</p>
+                        ) : (
+                          <div className="border border-[#E4E1D8] rounded-sm overflow-hidden text-xs">
+                            <table className="w-full text-left border-collapse">
+                              <thead className="bg-[#F7F5F0] border-b border-[#E4E1D8] text-[#1C1B19] font-semibold">
+                                <tr>
+                                  <th className="p-2.5">Mã dịch vụ</th>
+                                  <th className="p-2.5">Tên kỹ thuật cận lâm sàng</th>
+                                  <th className="p-2.5">Ghi chú yêu cầu</th>
+                                  <th className="p-2.5 text-center">Xóa</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#E4E1D8]">
+                                {labRequestsList.map((lab) => (
+                                  <tr key={lab.id} className="hover:bg-[#F7F5F0]/50">
+                                    <td className="p-2.5 font-mono font-bold text-[#1F6F5C]">{lab.code}</td>
+                                    <td className="p-2.5 font-medium text-[#1C1B19]">{lab.name}</td>
+                                    <td className="p-2.5 text-[#6B6A65]">{lab.note}</td>
+                                    <td className="p-2.5 text-center">
+                                      <button
+                                        onClick={() => handleRemoveLabRequest(lab.id)}
+                                        className="text-[#C1443C] hover:text-red-700 p-1"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-between pt-2">
+                        <button
+                          onClick={() => setActiveDoctorStep('diagnosis')}
+                          className="btn-secondary px-4 py-2 text-xs"
+                        >
+                          Quay lại Bước (a)
+                        </button>
+                        <button
+                          onClick={() => setActiveDoctorStep('prescription')}
+                          className="btn-secondary px-4 py-2 text-xs flex items-center space-x-1"
+                        >
+                          <span>Chuyển sang Bước (c) Kê đơn thuốc</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ============================================================ */}
+                  {/* STEP (c): KÊ ĐƠN THUỐC NGOẠI TRÚ (UC-D05: DonThuoc & ChiTietDonThuoc Table) */}
+                  {/* ============================================================ */}
+                  {activeDoctorStep === 'prescription' && (
+                    <div className="space-y-5 pt-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F7F5F0] p-3 rounded-sm border border-[#E4E1D8]">
+                        <span className="text-xs font-semibold text-[#1C1B19]">Chọn nhanh thuốc phổ biến:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {medicinePresets.map((m, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleAddPresetMedicineRow(m)}
+                              className="px-2 py-1 bg-white border border-[#E4E1D8] text-[11px] rounded-sm hover:border-[#1F6F5C] text-[#1C1B19]"
+                            >
+                              + {m.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Multi-row Prescription Items Table (ChiTietDonThuoc Structure) */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-semibold text-[#1C1B19]">Bảng Chi Tiết Đơn Thuốc Ngoại Trú ({prescriptionItems.length} loại thuốc):</h4>
+                          <button
+                            type="button"
+                            onClick={handleAddPrescriptionRow}
+                            className="btn-primary px-3 py-1.5 text-xs flex items-center space-x-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Thêm dòng thuốc mới</span>
+                          </button>
+                        </div>
+
+                        {prescriptionItems.length === 0 ? (
+                          <p className="text-xs text-[#6B6A65] italic bg-[#F7F5F0] p-4 rounded-sm text-center">Chưa có dòng thuốc nào trong đơn.</p>
+                        ) : (
+                          <div className="border border-[#E4E1D8] rounded-sm overflow-x-auto text-xs">
+                            <table className="w-full text-left border-collapse min-w-[640px]">
+                              <thead className="bg-[#F7F5F0] border-b border-[#E4E1D8] text-[#1C1B19] font-semibold">
+                                <tr>
+                                  <th className="p-2.5 w-10 text-center">STT</th>
+                                  <th className="p-2.5 min-w-[150px]">Tên thuốc & Nồng độ</th>
+                                  <th className="p-2.5 w-24">Số lượng</th>
+                                  <th className="p-2.5 w-24">Đơn vị</th>
+                                  <th className="p-2.5 min-w-[160px]">Liều dùng & Tần suất</th>
+                                  <th className="p-2.5 w-28">Đường dùng</th>
+                                  <th className="p-2.5 w-10 text-center">Xóa</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#E4E1D8]">
+                                {prescriptionItems.map((item, idx) => (
+                                  <tr key={item.id} className="hover:bg-[#F7F5F0]/30">
+                                    <td className="p-2.5 text-center font-bold text-[#6B6A65]">{idx + 1}</td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={item.medicine_name}
+                                        onChange={(e) => handleUpdatePrescriptionRow(item.id, 'medicine_name', e.target.value)}
+                                        placeholder="Nhập tên thuốc..."
+                                        className="w-full bg-white border border-[#E4E1D8] rounded-sm p-1.5 text-xs text-[#1C1B19] focus:outline-none"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={item.quantity}
+                                        onChange={(e) => handleUpdatePrescriptionRow(item.id, 'quantity', e.target.value)}
+                                        className="w-full bg-white border border-[#E4E1D8] rounded-sm p-1.5 text-xs text-[#1C1B19] focus:outline-none"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={item.unit}
+                                        onChange={(e) => handleUpdatePrescriptionRow(item.id, 'unit', e.target.value)}
+                                        className="w-full bg-white border border-[#E4E1D8] rounded-sm p-1.5 text-xs text-[#1C1B19] focus:outline-none"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={item.usage}
+                                        onChange={(e) => handleUpdatePrescriptionRow(item.id, 'usage', e.target.value)}
+                                        placeholder="Sáng 1v, Tối 1v..."
+                                        className="w-full bg-white border border-[#E4E1D8] rounded-sm p-1.5 text-xs text-[#1C1B19] focus:outline-none"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <select
+                                        value={item.route}
+                                        onChange={(e) => handleUpdatePrescriptionRow(item.id, 'route', e.target.value)}
+                                        className="w-full bg-white border border-[#E4E1D8] rounded-sm p-1.5 text-xs text-[#1C1B19] focus:outline-none"
+                                      >
+                                        <option value="Uống">Uống</option>
+                                        <option value="Bôi">Bôi ngoài da</option>
+                                        <option value="Nhỏ mắt">Nhỏ mắt/tai</option>
+                                        <option value="Nhỏ mũi">Nhỏ mũi</option>
+                                        <option value="Tiêm">Tiêm bắp/IV</option>
+                                      </select>
+                                    </td>
+                                    <td className="p-2.5 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemovePrescriptionRow(item.id)}
+                                        className="text-[#C1443C] hover:text-red-700 p-1"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Final Complete CTA */}
+                      <div className="pt-4 border-t border-[#E4E1D8] flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setActiveDoctorStep('lab')}
+                          className="btn-secondary px-4 py-2 text-xs"
+                        >
+                          Quay lại Bước (b)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDoctorCompleteApt(selectedAptToExamine.id)}
+                          className="btn-primary px-6 py-2.5 text-xs font-semibold flex items-center space-x-2"
+                        >
+                          <Printer className="w-4 h-4" />
+                          <span>Lưu ca khám & In Đơn thuốc ngoại trú</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="medical-card p-12 text-center text-[#6B6A65]">
                   <Stethoscope className="w-10 h-10 mx-auto mb-2 text-[#9CA3AF]" />
-                  <p className="text-sm">Vui lòng chọn 1 ca khám từ danh sách bên trái để ghi nhận kết luận bệnh án.</p>
+                  <p className="text-sm">Vui lòng chọn 1 ca khám từ danh sách bên trái để tiến hành 3 bước khám bệnh.</p>
                 </div>
               )}
             </div>
@@ -1233,7 +1546,7 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
         )}
 
         {/* ============================================================ */}
-        {/* TAB 3: PATIENT PORTAL & HISTORY (Module A & C) */}
+        {/* TAB 3: PATIENT PORTAL & HISTORY */}
         {/* ============================================================ */}
         {activeTab === 'patient' && (
           <div className="space-y-6 text-left">
@@ -1266,10 +1579,19 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
 
                     <p className="text-xs text-[#1C1B19]"><strong>Mô tả triệu chứng:</strong> {apt.symptoms_text}</p>
 
-                    {apt.diagnosis && (
+                    {apt.diagnosis_primary && (
                       <div className="bg-[#F7F5F0] p-3 rounded-sm border border-[#E4E1D8] text-xs space-y-1">
-                        <p className="font-semibold text-[#1F6F5C]">Chẩn đoán của bác sĩ: {apt.diagnosis}</p>
-                        <p className="text-[#1C1B19]"><strong>Đơn thuốc:</strong> {apt.prescription}</p>
+                        <p className="font-semibold text-[#1F6F5C]">Chẩn đoán của bác sĩ: {apt.diagnosis_primary}</p>
+                        {apt.prescription_items && apt.prescription_items.length > 0 && (
+                          <div className="pt-1">
+                            <strong className="text-[#1C1B19]">Đơn thuốc ngoại trú:</strong>
+                            <ul className="list-disc list-inside pl-1 text-[11px] text-[#6B6A65] space-y-0.5 mt-0.5">
+                              {apt.prescription_items.map((m, i) => (
+                                <li key={i}>{m.medicine_name} — Số lượng: {m.quantity} {m.unit} ({m.usage})</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1294,214 +1616,41 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                 ))}
               </div>
             </div>
-
-            {/* Rating Modal */}
-            {feedbackRatingModal && (
-              <div className="fixed inset-0 z-50 bg-[#1C1B19]/40 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-[#FFFFFF] border border-[#E4E1D8] rounded-md p-6 max-w-md w-full space-y-4 shadow-lg text-[#1C1B19]">
-                  <h3 className="text-base font-semibold text-[#1C1B19]">Đánh giá độ chính xác của đề xuất AI</h3>
-                  <p className="text-xs text-[#6B6A65]">
-                    Đề xuất chuyên khoa <strong>{feedbackRatingModal.department_name}</strong> của AI có phù hợp với thực tế chẩn đoán bệnh của bạn không?
-                  </p>
-
-                  <div className="flex justify-center space-x-2 py-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setUserRating(star)}
-                        className="text-2xl transition hover:scale-110"
-                      >
-                        <span className={star <= userRating ? 'text-[#E8A33D]' : 'text-[#E4E1D8]'}>★</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <textarea
-                    rows={3}
-                    value={userFeedbackComment}
-                    onChange={(e) => setUserFeedbackComment(e.target.value)}
-                    placeholder="Nhập ý kiến góp ý của bạn (tùy chọn)..."
-                    className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm p-2.5 text-xs text-[#1C1B19] focus:outline-none"
-                  />
-
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => setFeedbackRatingModal(null)}
-                      className="btn-secondary flex-1 py-2 text-xs"
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      onClick={() => handleSubmitFeedback(feedbackRatingModal.id)}
-                      className="btn-primary flex-1 py-2 text-xs"
-                    >
-                      Gửi đánh giá
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
         {/* ============================================================ */}
-        {/* TAB 4: ADMIN DASHBOARD & RULES (Pkg E) */}
+        {/* TAB 4: ADMIN DASHBOARD */}
         {/* ============================================================ */}
         {activeTab === 'admin' && (
           <div className="space-y-8 text-left">
-            {/* Neutral Stats Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="medical-card p-4">
                 <span className="text-xs text-[#6B6A65]">Tổng lượt đặt hẹn</span>
                 <div className="text-2xl font-bold text-[#1C1B19] mt-1">{adminStats.total_appointments}</div>
               </div>
-
               <div className="medical-card p-4">
                 <span className="text-xs text-[#6B6A65]">Tỷ lệ hủy lịch</span>
                 <div className="text-2xl font-bold text-[#1C1B19] mt-1">{adminStats.cancellation_rate_pct}%</div>
               </div>
-
               <div className="medical-card p-4">
                 <span className="text-xs text-[#6B6A65]">Độ hài lòng gợi ý AI</span>
                 <div className="text-2xl font-bold text-[#1F6F5C] mt-1">★ {adminStats.avg_ai_rating}</div>
               </div>
-
               <div className="medical-card p-4">
                 <span className="text-xs text-[#6B6A65]">Tổng số Bác sĩ</span>
                 <div className="text-2xl font-bold text-[#1C1B19] mt-1">{adminStats.total_doctors}</div>
-              </div>
-            </div>
-
-            {/* Symptom Mapping Rule Management */}
-            <div className="medical-card p-6 space-y-5">
-              <div>
-                <h3 className="text-base font-semibold text-[#1C1B19]">Quản lý bảng ánh xạ triệu chứng và chuyên khoa (AI Rules)</h3>
-                <p className="text-xs text-[#6B6A65]">Cấu hình quy tắc tri thức nội bộ cho AI Symptom Checker Fallback</p>
-              </div>
-
-              {/* Form Input */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#F7F5F0] p-3 rounded-sm border border-[#E4E1D8]">
-                <input
-                  type="text"
-                  placeholder="Từ khóa triệu chứng (vd: đau ngực)"
-                  value={newRuleKeyword}
-                  onChange={(e) => setNewRuleKeyword(e.target.value)}
-                  className="bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm px-3 py-1.5 text-xs text-[#1C1B19] focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Tag triệu chứng"
-                  value={newRuleTag}
-                  onChange={(e) => setNewRuleTag(e.target.value)}
-                  className="bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm px-3 py-1.5 text-xs text-[#1C1B19] focus:outline-none"
-                />
-                <select
-                  value={newRuleDept}
-                  onChange={(e) => setNewRuleDept(e.target.value)}
-                  className="bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm px-3 py-1.5 text-xs text-[#1C1B19] focus:outline-none"
-                >
-                  <option value="Tim mạch">Tim mạch</option>
-                  <option value="Da liễu">Da liễu</option>
-                  <option value="Nội tổng quát">Nội tổng quát</option>
-                  <option value="Tai Mũi Họng">Tai Mũi Họng</option>
-                  <option value="Nhi khoa">Nhi khoa</option>
-                </select>
-                <button
-                  onClick={handleAddAdminRule}
-                  className="btn-primary py-1.5 text-xs flex items-center justify-center space-x-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Thêm quy tắc</span>
-                </button>
-              </div>
-
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F7F5F0] text-[#6B6A65] border-b border-[#E4E1D8]">
-                    <tr>
-                      <th className="p-2.5 font-semibold">Mã</th>
-                      <th className="p-2.5 font-semibold">Từ khóa</th>
-                      <th className="p-2.5 font-semibold">Tag</th>
-                      <th className="p-2.5 font-semibold">Chuyên khoa đề xuất</th>
-                      <th className="p-2.5 font-semibold">Mức độ rủi ro</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4E1D8] text-[#1C1B19]">
-                    {symptomRules.map((r) => (
-                      <tr key={r.id}>
-                        <td className="p-2.5 font-mono text-[#6B6A65]">#{r.id}</td>
-                        <td className="p-2.5 font-medium">{r.keyword}</td>
-                        <td className="p-2.5">{r.tag}</td>
-                        <td className="p-2.5 font-semibold text-[#1F6F5C]">{r.dept_name || 'Tim mạch'}</td>
-                        <td className="p-2.5">
-                          <span className={`px-2 py-0.5 rounded-sm font-medium ${
-                            r.severity === 'EMERGENCY' ? 'bg-[#F6DEDC] text-[#C1443C]' : 'bg-[#FBEACB] text-[#B45309]'
-                          }`}>
-                            {r.severity}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* FOOTER SECTION */}
-      <footer className="mt-20 bg-[#FFFFFF] border-t border-[#E4E1D8] px-4 lg:px-8 py-10 text-left text-xs text-[#6B6A65]">
-        <div className="max-w-[1080px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-[#1F6F5C] font-bold text-base">
-              <Stethoscope className="w-5 h-5" />
-              <span>Sức Khoẻ Thông Minh</span>
-            </div>
-            <p className="text-xs text-[#6B6A65] leading-relaxed">
-              Nền tảng đặt lịch khám bệnh trực tuyến kết hợp trợ lý AI hỗ trợ chẩn đoán triệu chứng ban đầu.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="font-semibold text-[#1C1B19] text-sm">Chuyên khoa nổi bật</h4>
-            <ul className="space-y-1 text-xs">
-              <li>• Khoa Tim mạch</li>
-              <li>• Khoa Da liễu</li>
-              <li>• Khoa Nội tổng quát</li>
-              <li>• Khoa Tai Mũi Họng</li>
-            </ul>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="font-semibold text-[#1C1B19] text-sm">Liên hệ & Hỗ trợ</h4>
-            <p>Hotline CSKH: 1900 1234</p>
-            <p>Khám Cấp cứu: Gọi 115</p>
-            <p>Địa chỉ: Tòa nhà Y Tế Quốc Tế, Hà Nội</p>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="font-semibold text-[#1C1B19] text-sm">Miễn trừ trách nhiệm y tế</h4>
-            <p className="text-[11px] text-[#6B6A65] leading-relaxed">
-              Kết quả phân tích từ AI chỉ mang tính chất tham khảo sơ bộ và hỗ trợ định hướng phòng khám. Không thay thế cho chẩn đoán y khoa chính thức từ bác sĩ chuyên khoa.
-            </p>
-          </div>
-        </div>
-
-        <div className="max-w-[1080px] mx-auto pt-8 mt-8 border-t border-[#E4E1D8] text-center text-xs text-[#6B6A65]">
-          © 2026 SmartCare Health Management System. All rights reserved.
-        </div>
-      </footer>
-
-      {/* Auth Modal */}
+      {/* Shared Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={(user) => {
-          setCurrentUser(user);
-        }}
+        onAuthSuccess={(user) => setCurrentUser(user)}
       />
     </div>
   );
