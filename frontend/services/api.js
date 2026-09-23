@@ -43,151 +43,146 @@ class ApiService {
         throw new Error(errorMsg);
       }
 
-      return await response.json();
+      const resJson = await response.json();
+      // Handle ResponseEnvelope wrapper: return resJson.data if wrapped, else resJson
+      if (resJson && typeof resJson === 'object' && 'success' in resJson && 'data' in resJson) {
+        return resJson.data !== null && resJson.data !== undefined ? resJson.data : resJson;
+      }
+      return resJson;
     } catch (error) {
-      console.warn(`API Request Error [${endpoint}]:`, error.message);
+      console.warn(`API Request Warning [${endpoint}]:`, error.message);
       throw error;
     }
   }
 
-  // --- Auth APIs ---
+  // --- Auth APIs (Package A) ---
   static async register(data) {
-    const res = await this.request('/api/auth/register', {
+    // API: POST /api/v1/auth/register
+    return await this.request('/api/v1/auth/register', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ho_ten: data.full_name || data.ho_ten,
+        email: data.email,
+        so_dien_thoai: data.phone || data.so_dien_thoai,
+        mat_khau: data.password || data.mat_khau,
+        ngay_sinh: data.dob || data.ngay_sinh || null,
+        gioi_tinh: data.gender || data.gioi_tinh || 'Khác'
+      }),
     });
-    if (res.access_token) this.setToken(res.access_token);
+  }
+
+  static async verifyOTP(email, code) {
+    // API: POST /api/v1/auth/verify-otp
+    const res = await this.request('/api/v1/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp_code: code }),
+    });
+    if (res?.access_token) this.setToken(res.access_token);
     return res;
   }
 
-  static async loginPassword(emailOrPhone, password) {
-    const res = await this.request('/api/auth/login', {
+  static async loginPassword(email, password) {
+    // API: POST /api/v1/auth/login
+    const res = await this.request('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email_or_phone: emailOrPhone, password }),
+      body: JSON.stringify({ email, mat_khau: password }),
     });
-    if (res.access_token) this.setToken(res.access_token);
-    return res;
-  }
-
-  static async requestOTP(phone) {
-    return await this.request('/api/auth/request-otp', {
-      method: 'POST',
-      body: JSON.stringify({ phone }),
-    });
-  }
-
-  static async verifyOTP(phone, code) {
-    const res = await this.request('/api/auth/verify-otp', {
-      method: 'POST',
-      body: JSON.stringify({ phone, code }),
-    });
-    if (res.access_token) this.setToken(res.access_token);
-    return res;
-  }
-
-  static async googleLogin(email, fullName) {
-    const res = await this.request('/api/auth/google-login', {
-      method: 'POST',
-      body: JSON.stringify({ id_token: 'mock_google_token', email, full_name: fullName }),
-    });
-    if (res.access_token) this.setToken(res.access_token);
+    if (res?.access_token) this.setToken(res.access_token);
     return res;
   }
 
   static async getCurrentUser() {
-    return await this.request('/api/auth/me');
+    // API: GET /api/v1/auth/me
+    return await this.request('/api/v1/auth/me');
   }
 
-  static async updatePatientProfile(profileData) {
-    return await this.request('/api/auth/patient-profile', {
-      method: 'PUT',
-      body: JSON.stringify(profileData),
-    });
-  }
-
-  static async updateDoctorProfile(profileData) {
-    return await this.request('/api/auth/doctor-profile', {
-      method: 'PUT',
-      body: JSON.stringify(profileData),
-    });
-  }
-
-  // --- Department APIs ---
+  // --- Medical Catalog APIs (Package D & E) ---
   static async getDepartments() {
-    return await this.request('/api/departments');
+    // API: GET /api/v1/medical/specialties
+    return await this.request('/api/v1/medical/specialties');
   }
 
-  // --- Doctor Discovery & Slot APIs ---
-  static async getDoctors(departmentId = null) {
-    const query = departmentId ? `?department_id=${departmentId}` : '';
-    return await this.request(`/api/doctors${query}`);
+  static async getDoctors(specialtyId = null) {
+    // API: GET /api/v1/medical/doctors?specialty_id=X
+    const query = specialtyId ? `?specialty_id=${specialtyId}` : '';
+    return await this.request(`/api/v1/medical/doctors${query}`);
   }
 
-  static async getDoctorDetail(doctorId) {
-    return await this.request(`/api/doctors/${doctorId}`);
+  static async getMedicalServices() {
+    // API: GET /api/v1/medical/services
+    return await this.request('/api/v1/medical/services');
   }
 
-  static async getDoctorAvailableSlots(doctorId, dateStr) {
-    return await this.request(`/api/doctors/${doctorId}/slots?date_str=${dateStr}`);
-  }
-
-  // --- AI Symptom Checker APIs ---
+  // --- AI Symptom Checker APIs (Package C) ---
   static async analyzeSymptoms(symptomData) {
-    return await this.request('/api/ai/analyze-symptoms', {
+    // API: POST /api/v1/ai/analyze-symptoms
+    return await this.request('/api/v1/ai/analyze-symptoms', {
       method: 'POST',
-      body: JSON.stringify(symptomData),
+      body: JSON.stringify({
+        trieu_chung: symptomData.trieu_chung || symptomData.free_text || symptomData.symptom_tags?.join(', '),
+        tuoi: symptomData.tuoi || symptomData.patient_age || 30,
+        gioi_tinh: symptomData.gioi_tinh || symptomData.patient_gender || 'Nam'
+      }),
     });
   }
 
-  static async submitAIFeedback(feedbackData) {
-    return await this.request('/api/ai/feedback', {
-      method: 'POST',
-      body: JSON.stringify(feedbackData),
-    });
+  // --- Appointment Booking & Slots APIs (Package B) ---
+  static async getDoctorAvailableSlots(doctorId, dateStr) {
+    // API: GET /api/v1/appointments/doctors/{doctor_id}/slots?query_date=YYYY-MM-DD
+    return await this.request(`/api/v1/appointments/doctors/${doctorId}/slots?query_date=${dateStr}`);
   }
 
-  // --- Appointment Booking APIs ---
   static async createAppointment(bookingData) {
-    return await this.request('/api/appointments', {
+    // API: POST /api/v1/appointments
+    return await this.request('/api/v1/appointments', {
       method: 'POST',
-      body: JSON.stringify(bookingData),
+      body: JSON.stringify({
+        bac_si_id: bookingData.bac_si_id || bookingData.doctor_id,
+        ngay_kham: bookingData.ngay_kham || bookingData.appointment_date,
+        gio_kham: bookingData.gio_kham || bookingData.start_time || '08:00:00',
+        ly_do_kham: bookingData.ly_do_kham || bookingData.notes || 'Khám sức khỏe',
+        trieu_chung_ban_dau: bookingData.trieu_chung_ban_dau || bookingData.symptoms_text || ''
+      }),
     });
   }
 
   static async getPatientHistory() {
-    return await this.request('/api/appointments/my-history');
+    // API: GET /api/v1/appointments/my-appointments
+    return await this.request('/api/v1/appointments/my-appointments');
   }
 
+  static async cancelAppointment(appointmentId, reason) {
+    // API: POST /api/v1/appointments/{appointment_id}/cancel
+    return await this.request(`/api/v1/appointments/${appointmentId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ ly_do_huy: reason }),
+    });
+  }
+
+  // --- Doctor Workstation APIs ---
   static async getDoctorShiftAppointments(dateStr = null) {
     const query = dateStr ? `?date_str=${dateStr}` : '';
-    return await this.request(`/api/appointments/doctor-shift${query}`);
+    return await this.request(`/api/v1/appointments/doctor-shift${query}`);
   }
 
   static async doctorCompleteAppointment(aptId, outcomeData) {
-    return await this.request(`/api/appointments/${aptId}/complete`, {
+    return await this.request(`/api/v1/appointments/${aptId}/complete`, {
       method: 'PUT',
       body: JSON.stringify(outcomeData),
     });
   }
 
-  static async updateAppointmentStatus(aptId, status, cancelledReason = null) {
-    return await this.request(`/api/appointments/${aptId}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status, cancelled_reason: cancelledReason }),
-    });
-  }
-
   // --- Admin Portal APIs ---
   static async getAdminDashboardStats() {
-    return await this.request('/api/admin/dashboard-stats');
+    return await this.request('/api/v1/admin/dashboard-stats');
   }
 
   static async getSymptomMappings() {
-    return await this.request('/api/admin/symptom-mappings');
+    return await this.request('/api/v1/admin/symptom-mappings');
   }
 
   static async createSymptomMapping(mappingData) {
-    return await this.request('/api/admin/symptom-mappings', {
+    return await this.request('/api/v1/admin/symptom-mappings', {
       method: 'POST',
       body: JSON.stringify(mappingData),
     });
