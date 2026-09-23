@@ -1,196 +1,216 @@
-import os
-import json
+import re
+import unicodedata
 import logging
-from typing import List, Optional
-from sqlalchemy.orm import Session
+from typing import List, Tuple
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.core.config import settings
+from app.models.user import ChuyenKhoa, BacSi, NguoiDung, TaiKhoan
+from app.models.medical import TuKhoaCapCuu
+from app.models.appointment import PhanTichAI
+from app.schemas.ai import (
+    SymptomTriageRequest, 
+    SymptomTriageResponse, 
+    SpecialtySuggestion
+)
+from app.schemas.appointment import DoctorBriefResponse
 
-from app.models import Department, SymptomMapping
-from app.schemas import AISymptomAnalysisResult, AISymptomRequest
+logger = logging.getLogger("clinic_backend")
 
-logger = logging.getLogger("ai_service")
-logging.basicConfig(level=logging.INFO)
 
-# High severity emergency keyword list for quick triage safety check
-EMERGENCY_KEYWORDS = [
-    "đau ngực dữ dội", "ép ngực", "khó thở trầm trọng", "khó thở cấp",
-    "đột quỵ", "méo miệng", "tê yếu nửa người", "mất ý thức", "hôn mê",
-    "co giật", "chấn thương đầu nặng", "chảy máu không cầm", "nôn ra máu",
-    "đau bụng cấp dữ dội", "sốc dị ứng", "phù quincke"
-]
+class AIService:
+    """Tầng Control xử lý Trí tuệ nhân tạo phân tích triệu chứng và Bộ lọc Red Flags y tế (Package C)"""
 
-class AISymptomService:
-    @staticmethod
-    def analyze_symptoms(
-        db: Session,
-        request: AISymptomRequest
-    ) -> AISymptomAnalysisResult:
-        """
-        Analyzes patient symptoms using LLM structured output or internal rule engine fallback.
-        Returns validated AISymptomAnalysisResult schema.
-        """
-        user_input_combined = f"{request.free_text} {' '.join(request.symptom_tags)}".lower()
-        
-        # 1. Quick Emergency Safety Pre-check
-        is_hard_emergency = any(kw in user_input_combined for kw in EMERGENCY_KEYWORDS)
-        
-        # 2. Query system departments for context
-        departments = db.query(Department).filter(Department.is_active == True).all()
-        dept_map = {d.code: d for d in departments}
-        dept_list_str = "\n".join([f"- {d.code}: {d.name} ({d.description})" for d in departments])
+    def normalize_vietnamese(self, text: str) -> str:
+        """Chuẩn hóa chuỗi văn bản tiếng Việt sang dạng Unicode dựng sẵn NFC và chữ thường"""
+        if not text:
+            return ""
+        text = unicodedata.normalize("NFC", text)
+        text = text.lower()
+        text = re.sub(r"[^\w\s\u00C0-\u024F]", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
 
-        # 3. Attempt OpenAI / Gemini Call if API keys are set
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
+    async def scan_red_flags(self, text_normalized: str, db: AsyncSession) -> Tuple[bool, str]:
+        """Chốt chặn an toàn số 1: Quét từ điển dấu hiệu cấp cứu nguy hiểm tính mạng"""
+        stmt = select(TuKhoaCapCuu).where(TuKhoaCapCuu.is_active.is_(True))
+        red_flag_rules = (await db.execute(stmt)).scalars().all()
 
-        if openai_api_key:
-            try:
-                return AISymptomService._call_openai_llm(request, dept_list_str, dept_map, is_hard_emergency)
-            except Exception as e:
-                logger.warning(f"OpenAI API call failed: {e}. Falling back to Rule Engine.")
+        for rule in red_flag_rules:
+            pattern = self.normalize_vietnamese(rule.tu_khoa)
+            if pattern in text_normalized:
+                logger.critical(f"🚨 [RED FLAG DETECTED] Bắt trúng từ khóa nguy hiểm: '{rule.tu_khoa}'")
+                return True, rule.huong_dan_xu_tri
 
-        if gemini_api_key:
-            try:
-                return AISymptomService._call_gemini_llm(request, dept_list_str, dept_map, is_hard_emergency)
-            except Exception as e:
-                logger.warning(f"Gemini API call failed: {e}. Falling back to Rule Engine.")
+        # Kiểm tra thêm một số cụm từ cấp cứu kinh điển đề phòng DB chưa seed đủ
+        built_in_emergency = [
+            "đau ngực dữ dội", "khó thở cấp", "ngất xỉu", "hôn mê", 
+            "co giật", "liệt nửa người", "sốt co giật", "nôn ra máu"
+        ]
+        for emg in built_in_emergency:
+            if emg in text_normalized:
+                return True, "CẢNH BÁO NGUY CƠ NGUY HIỂM TÍNH MẠNG! Đề nghị liên hệ 115 hoặc đến phòng cấp cứu gần nhất."
 
-        # 4. Fallback: Internal Rule Engine based on symptom_mappings table
-        return AISymptomService._rule_based_analysis(db, request, dept_map, is_hard_emergency)
+        return False, ""
 
-    @staticmethod
-    def _call_openai_llm(
-        request: AISymptomRequest,
-        dept_list_str: str,
-        dept_map: dict,
-        is_hard_emergency: bool
-    ) -> AISymptomAnalysisResult:
-        import openai
+    async def analyze_symptoms(
+        self, 
+        payload: SymptomTriageRequest, 
+        user: TaiKhoan = None, 
+        db: AsyncSession = None
+    ) -> SymptomTriageResponse:
+        """Quy trình 3 chốt chặn suy luận phân loại chuyên khoa và gợi ý bác sĩ"""
+        raw_text = payload.trieu_chung
+        text_normalized = self.normalize_vietnamese(raw_text)
 
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-        system_prompt = (
-            "Bạn là trợ lý y tế AI chuyên nghiệp thuộc Nền tảng Y tế Thông minh.\n"
-            "Nhiệm vụ của bạn là phân tích mô tả triệu chứng của bệnh nhân, xác định dấu hiệu cấp cứu,\n"
-            "gợi ý Chuyên khoa phòng khám phù hợp nhất và đưa ra lời giải thích y khoa tóm tắt bằng tiếng Việt.\n\n"
-            f"Danh sách các chuyên khoa hiện có tại hệ thống phòng khám:\n{dept_list_str}\n\n"
-            "Yêu cầu:\n"
-            "1. Nếu triệu chứng có dấu hiệu đe dọa tính mạng (đau ngực dữ dội, khó thở nặng, đột quỵ, mất ý thức...), set is_emergency = True.\n"
-            "2. Điểm tin cậy confidence_score từ 0.0 - 1.0.\n"
-            "3. Trả về đúng định dạng JSON tuân thủ Schema."
-        )
-
-        user_content = (
-            f"Mô tả tự do: {request.free_text}\n"
-            f"Các tag triệu chứng đã chọn: {', '.join(request.symptom_tags)}\n"
-            f"Giới tính: {request.patient_gender or 'Không rõ'}, Tuổi: {request.patient_age or 'Không rõ'}"
-        )
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.2
-        )
-
-        raw_json = json.loads(response.choices[0].message.content)
-        
-        dept_code = raw_json.get("recommended_department_code", "INTERNAL_MEDICINE")
-        dept_obj = dept_map.get(dept_code) or list(dept_map.values())[0]
-
-        return AISymptomAnalysisResult(
-            is_emergency=raw_json.get("is_emergency", is_hard_emergency),
-            emergency_warning=raw_json.get("emergency_warning") or ("CẢNH BÁO CẤP CỨU 115: Triệu chứng nguy hiểm! Bạn nên gọi 115 hoặc đến trung tâm y tế gần nhất ngay lập tức!" if is_hard_emergency else None),
-            recommended_department_code=dept_obj.code,
-            recommended_department_name=dept_obj.name,
-            recommended_department_id=dept_obj.id,
-            confidence_score=float(raw_json.get("confidence_score", 0.85)),
-            medical_explanation=raw_json.get("medical_explanation", "Dựa trên mô tả triệu chứng, hệ thống đề xuất khám chuyên khoa phù hợp."),
-            suggested_action=raw_json.get("suggested_action", f"Vui lòng chọn bác sĩ thuộc chuyên khoa {dept_obj.name} để đặt lịch khám."),
-            suggested_questions=raw_json.get("suggested_questions", ["Triệu chứng xuất hiện từ khi nào?", "Mức độ đau 1-10 là bao nhiêu?"])
-        )
-
-    @staticmethod
-    def _call_gemini_llm(
-        request: AISymptomRequest,
-        dept_list_str: str,
-        dept_map: dict,
-        is_hard_emergency: bool
-    ) -> AISymptomAnalysisResult:
-        # Fallback to internal rule engine if google.generativeai not installed
-        raise NotImplementedError("Fallback to rule engine")
-
-    @staticmethod
-    def _rule_based_analysis(
-        db: Session,
-        request: AISymptomRequest,
-        dept_map: dict,
-        is_hard_emergency: bool
-    ) -> AISymptomAnalysisResult:
-        """
-        Deterministic Rule Engine matching symptom_mappings table keywords & tags.
-        """
-        combined_text = f"{request.free_text} {' '.join(request.symptom_tags)}".lower()
-        mappings = db.query(SymptomMapping).all()
-
-        best_match_dept_id = None
-        matched_severity = "LOW"
-        highest_score = 0
-        matched_notes = []
-
-        # Default department
-        default_dept = list(dept_map.values())[0] if dept_map else None
-        default_dept_id = default_dept.id if default_dept else 1
-
-        for m in mappings:
-            score = 0
-            if m.symptom_keyword.lower() in combined_text:
-                score += 3
-            if m.symptom_tag.lower() in combined_text:
-                score += 2
-
-            if score > highest_score:
-                highest_score = score
-                best_match_dept_id = m.department_id
-                matched_severity = m.severity
-                if m.notes:
-                    matched_notes.append(m.notes)
-
-        # Retrieve matched department
-        target_dept = None
-        if best_match_dept_id:
-            target_dept = db.query(Department).filter(Department.id == best_match_dept_id).first()
-
-        if not target_dept:
-            target_dept = db.query(Department).first() or Department(id=1, code="INTERNAL_MEDICINE", name="Nội tổng quát")
-
-        is_emergency = is_hard_emergency or (matched_severity == "EMERGENCY")
-        confidence = min(0.92, 0.65 + (highest_score * 0.08)) if highest_score > 0 else 0.70
-
-        explanation_text = (
-            f"Phân tích hệ thống nhận thấy các triệu chứng của bạn ('{request.free_text}') "
-            f"phù hợp với phạm vi chẩn đoán và điều trị của Chuyên khoa {target_dept.name}. "
-            f"{' '.join(matched_notes) if matched_notes else 'Khuyến cáo nên thăm khám sớm với bác sĩ chuyên khoa để được tư vấn chính xác.'}"
-        )
-
-        emergency_msg = None
+        # 1. CHỐT CHẶN 1: Quét dấu hiệu cấp cứu Red Flags
+        is_emergency, alert_msg = await self.scan_red_flags(text_normalized, db)
         if is_emergency:
-            emergency_msg = "🚨 CẢNH BÁO CẤP CỨU Y TẾ: Triệu chứng của bạn có dấu hiệu nguy hiểm (khó thở, đau ngực dữ dội hoặc dấu hiệu thần kinh). Hãy gọi ngay Cấp cứu 115 hoặc nhờ người thân đưa đến cơ sở y tế gần nhất!"
+            # Ghi vết nhật ký cấp cứu
+            log_ai = PhanTichAI(
+                trieu_chung_nhap=raw_text,
+                co_dau_hieu_cap_cuu=True,
+                do_tin_cay=1.0
+            )
+            db.add(log_ai)
+            await db.commit()
 
-        return AISymptomAnalysisResult(
-            is_emergency=is_emergency,
-            emergency_warning=emergency_msg,
-            recommended_department_code=target_dept.code,
-            recommended_department_name=target_dept.name,
-            recommended_department_id=target_dept.id,
-            confidence_score=round(confidence, 2),
-            medical_explanation=explanation_text,
-            suggested_action=f"Đặt lịch thăm khám ngay với các Bác sĩ chuyên khoa {target_dept.name} bên dưới.",
-            suggested_questions=[
-                "Triệu chứng này kéo dài bao lâu rồi?",
-                "Bạn có tiền sử bệnh lý gia đình liên quan không?",
-                "Triệu chứng tăng lên khi vận động hay nghỉ ngơi?"
-            ]
+            return SymptomTriageResponse(
+                has_emergency=True,
+                emergency_alert=alert_msg,
+                suggested_specialties=[]
+            )
+
+        # 2. CHỐT CHẶN 2: Mô hình phân loại triệu chứng dựa trên bảng tri thức y tế
+        # (Trong thực tế production gọi model PhoBERT trên server GPU, ở đây implement Engine đối chiếu luật + trọng số NLP)
+        knowledge_base = [
+            {
+                "specialty_name": "Tim mạch",
+                "keywords": ["ngực", "tim", "hồi hộp", "đánh trống ngực", "mạch nhanh", "vã mồ hôi"],
+                "reason": "Mô tả triệu chứng liên quan đến vùng ngực, tim và huyết động học."
+            },
+            {
+                "specialty_name": "Tiêu hóa",
+                "keywords": ["bụng", "dạ dày", "tiêu chảy", "ợ chua", "đầy hơi", "buồn nôn", "thượng vị"],
+                "reason": "Các dấu hiệu điển hình của rối loạn đường tiêu hóa và dạ dày - đại tràng."
+            },
+            {
+                "specialty_name": "Tai - Mũi - Họng",
+                "keywords": ["chóng mặt", "quay cuồng", "tiền đình", "ù tai", "tai", "mũi", "họng", "nghẹt mũi", "khàn tiếng"],
+                "reason": "Triệu chứng tiền đình và hô hấp trên thuộc phạm vi Tai - Mũi - Họng."
+            },
+            {
+                "specialty_name": "Thần kinh",
+                "keywords": ["đầu", "đau nửa đầu", "mất ngủ", "tê bì", "giật", "chân tay"],
+                "reason": "Dấu hiệu ảnh hưởng tới hệ thần kinh trung ương và ngoại vi."
+            },
+            {
+                "specialty_name": "Hô hấp",
+                "keywords": ["ho", "đờm", "phổi", "khò khè", "viêm phế quản"],
+                "reason": "Triệu chứng bệnh lý đường hô hấp dưới và phổi."
+            },
+            {
+                "specialty_name": "Da liễu",
+                "keywords": ["ngứa", "mẩn đỏ", "dị ứng", "mề đay", "mụn", "bong tróc da"],
+                "reason": "Tổn thương bề mặt da và phản ứng quá mẫn dị ứng."
+            },
+            {
+                "specialty_name": "Cơ xương khớp",
+                "keywords": ["khớp", "gối", "lưng", "vai gáy", "cột sống", "cứng khớp"],
+                "reason": "Bệnh lý hệ vận động và thoái hóa xương khớp."
+            }
+        ]
+
+        scored_specialties = []
+        for kb in knowledge_base:
+            match_count = sum(1 for kw in kb["keywords"] if kw in text_normalized)
+            if match_count > 0:
+                confidence = min(0.60 + (match_count * 0.12), 0.95)
+                scored_specialties.append((kb["specialty_name"], confidence, kb["reason"]))
+
+        scored_specialties.sort(key=lambda x: x[1], reverse=True)
+
+        suggestions: List[SpecialtySuggestion] = []
+        default_assigned = False
+
+        # 3. CHỐT CHẶN 3: Đánh giá ngưỡng 60% (Confidence Threshold)
+        if not scored_specialties or scored_specialties[0][1] < settings.AI_CONFIDENCE_THRESHOLD:
+            # Độ tin cậy dưới 60% -> Tự động chuyển về Nội tổng quát để đảm bảo an toàn
+            default_assigned = True
+            target_specialty_name = "Nội tổng quát"
+            confidence = 0.50
+            reason = "Mô tả triệu chứng chưa đủ đặc hiệu. Hệ thống khuyến nghị khám Nội tổng quát để sàng lọc bước đầu."
+            suggestions.append(
+                await self._build_specialty_suggestion(target_specialty_name, confidence, reason, db)
+            )
+        else:
+            # Lấy tối đa 2 chuyên khoa có điểm cao nhất
+            for spec_name, conf, reason in scored_specialties[:2]:
+                suggestions.append(
+                    await self._build_specialty_suggestion(spec_name, conf, reason, db)
+                )
+
+        # 4. Ghi nhận vết suy luận vào CSDL
+        top_suggestion = suggestions[0]
+        log_ai = PhanTichAI(
+            trieu_chung_nhap=raw_text,
+            chuyen_khoa_goi_y_id=top_suggestion.chuyen_khoa_id,
+            do_tin_cay=top_suggestion.do_tin_cay,
+            co_dau_hieu_cap_cuu=False
         )
+        db.add(log_ai)
+        await db.commit()
+
+        return SymptomTriageResponse(
+            has_emergency=False,
+            emergency_alert=None,
+            suggested_specialties=suggestions,
+            default_assigned=default_assigned
+        )
+
+    async def _build_specialty_suggestion(
+        self, 
+        specialty_name: str, 
+        confidence: float, 
+        reason: str, 
+        db: AsyncSession
+    ) -> SpecialtySuggestion:
+        """Helper tìm kiếm chuyên khoa và danh sách bác sĩ tương ứng trong CSDL"""
+        stmt_ck = select(ChuyenKhoa).where(ChuyenKhoa.ten_chuyen_khoa.ilike(f"%{specialty_name}%"))
+        ck = (await db.execute(stmt_ck)).scalar_one_or_none()
+
+        doctor_briefs = []
+        ck_id = 0
+        display_name = specialty_name
+
+        if ck:
+            ck_id = ck.id
+            display_name = ck.ten_chuyen_khoa
+            # Lấy các bác sĩ của chuyên khoa
+            stmt_bs = (
+                select(BacSi, NguoiDung)
+                .join(NguoiDung, BacSi.nguoi_dung_id == NguoiDung.id)
+                .where(BacSi.chuyen_khoa_id == ck.id)
+                .limit(3)
+            )
+            bs_list = (await db.execute(stmt_bs)).all()
+            for bac_si, nguoi_dung in bs_list:
+                doctor_briefs.append(
+                    DoctorBriefResponse(
+                        id=bac_si.id,
+                        ho_ten=nguoi_dung.ho_ten,
+                        chuyen_khoa=display_name,
+                        hoc_vi=bac_si.hoc_vi
+                    )
+                )
+
+        return SpecialtySuggestion(
+            chuyen_khoa_id=ck_id,
+            ten_chuyen_khoa=display_name,
+            do_tin_cay=confidence,
+            ly_do_de_xuat=reason,
+            danh_sach_bac_si=doctor_briefs
+        )
+
+
+ai_service = AIService()

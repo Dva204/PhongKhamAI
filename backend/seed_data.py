@@ -1,282 +1,272 @@
-import sys
-import os
-import datetime
+import asyncio
+from datetime import date, time, datetime, timedelta, timezone
+from sqlalchemy import select
+from app.core.database import AsyncSessionLocal, engine, Base
+from app.core.security import hash_password
+from app.models.user import ChuyenKhoa, NguoiDung, TaiKhoan, BenhNhan, BacSi, VaiTroEnum
+from app.models.appointment import LichLamViec, LichKham, CaLamViecEnum, TrangThaiLichEnum
+from app.models.medical import TuKhoaCapCuu, DichVu, KhaiNiem, LuotKham, ChanDoan, DonThuoc, ChiTietDonThuoc
 
-# Add current dir to sys.path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from app.database import engine, SessionLocal, Base
-from app.models import (
-    User, PatientProfile, DoctorProfile, Department, DoctorSchedule,
-    SymptomMapping, Appointment, AIFeedback
-)
-from app.auth import get_password_hash
+async def seed_database():
+    """Khởi tạo tập dữ liệu ban đầu cho toàn bộ 18 bảng CSDL PostgreSQL phòng khám theo chuẩn OpenMRS"""
+    print("🌱 [SEEDING] Đang kết nối PostgreSQL và khởi tạo dữ liệu mẫu...")
 
-def seed_database():
-    print("[INIT] Re-creating database tables...")
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-    db = SessionLocal()
+    async with AsyncSessionLocal() as session:
+        # 1. Kiểm tra nếu đã có dữ liệu thì không seed đè
+        stmt_check = select(ChuyenKhoa)
+        existing = (await session.execute(stmt_check)).first()
+        if existing:
+            print("⚠️ [SEEDING] CSDL đã có dữ liệu từ trước. Bỏ qua bước seed!")
+            return
 
-    try:
-        print("[SEED] Seeding Medical Departments...")
-        depts = [
-            Department(
-                code="INTERNAL_MEDICINE",
-                name="Nội tổng quát",
-                description="Thăm khám, chẩn đoán các bệnh lý nội khoa đường tiêu hóa, hô hấp, tuần hoàn.",
-                icon="Activity"
-            ),
-            Department(
-                code="CARDIOLOGY",
-                name="Tim mạch",
-                description="Tầm soát và điều trị tăng huyết áp, rối loạn nhịp tim, bệnh mạch vành.",
-                icon="Heart"
-            ),
-            Department(
-                code="DERMATOLOGY",
-                name="Da liễu",
-                description="Chẩn đoán & điều trị viêm da, dị ứng, mụn trứng cá, bệnh ngoài da.",
-                icon="Sparkles"
-            ),
-            Department(
-                code="PEDIATRICS",
-                name="Nhi khoa",
-                description="Chăm sóc sức khỏe toàn diện và tiêm chủng cho trẻ sơ sinh và trẻ nhỏ.",
-                icon="Baby"
-            ),
-            Department(
-                code="ENT",
-                name="Tai Mũi Họng",
-                description="Khám chữa viêm xoang, viêm họng, viêm tai giữa, hạt dây thanh.",
-                icon="Headphones"
-            ),
-            Department(
-                code="NEUROLOGY",
-                name="Thần kinh",
-                description="Điều trị đau đầu mãn tính, rối loạn giấc ngủ, thần kinh tọa, tiền đình.",
-                icon="Brain"
-            ),
-            Department(
-                code="OBGYN",
-                name="Sản phụ khoa",
-                description="Khám thai định kỳ, chăm sóc sức khỏe phụ nữ, tư vấn sinh sản.",
-                icon="Users"
-            ),
-            Department(
-                code="OPHTHALMOLOGY",
-                name="Mắt (Nhãn khoa)",
-                description="Tầm soát khúc xạ, đau mắt đỏ, đục thủy tinh thể và tổn thương võng mạc.",
-                icon="Eye"
-            )
+        # 2. Seed Danh mục Chuyên khoa (OpenMRS Department)
+        chuyen_khoas = [
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_NOI", ten_chuyen_khoa="Nội tổng quát", mo_ta="Khám và điều trị các bệnh lý nội khoa tổng hợp", vi_tri_phong="Phòng 101 - Tầng 1"),
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_TIM_MACH", ten_chuyen_khoa="Tim mạch", mo_ta="Chuyên sâu bệnh lý tim, mạch máu và tăng huyết áp", vi_tri_phong="Phòng 201 - Tầng 2"),
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_TIEU_HOA", ten_chuyen_khoa="Tiêu hóa", mo_ta="Khám dạ dày, đại tràng, gan mật tụy", vi_tri_phong="Phòng 202 - Tầng 2"),
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_TMH", ten_chuyen_khoa="Tai - Mũi - Họng", mo_ta="Khám và điều trị các bệnh lý tai mũi họng và tiền đình", vi_tri_phong="Phòng 203 - Tầng 2"),
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_THAN_KINH", ten_chuyen_khoa="Thần kinh", mo_ta="Khám đau đầu mạn tính, mất ngủ, chóng mặt, đột quỵ", vi_tri_phong="Phòng 301 - Tầng 3"),
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_DA_LIEU", ten_chuyen_khoa="Da liễu", mo_ta="Điều trị dị ứng da, mẩn đỏ, mề đay, nấm da, mụn", vi_tri_phong="Phòng 302 - Tầng 3"),
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_HO_HAP", ten_chuyen_khoa="Hô hấp", mo_ta="Điều trị ho dai dẳng, hen phế quản, viêm phổi phế quản", vi_tri_phong="Phòng 303 - Tầng 3"),
+            ChuyenKhoa(ma_chuyen_khoa="KHOA_XUONG_KHOP", ten_chuyen_khoa="Cơ xương khớp", mo_ta="Khám đau khớp gối, thoái hóa cột sống, loãng xương", vi_tri_phong="Phòng 401 - Tầng 4"),
         ]
-        db.add_all(depts)
-        db.commit()
+        session.add_all(chuyen_khoas)
+        await session.flush()
 
-        dept_map = {d.code: d.id for d in db.query(Department).all()}
-
-        print("[SEED] Seeding AI Symptom Mapping Rules (Internal Knowledge Base)...")
-        rules = [
-            # Tim mạch / Emergency
-            SymptomMapping(symptom_keyword="đau ngực dữ dội", symptom_tag="Đau ngực", department_id=dept_map["CARDIOLOGY"], severity="EMERGENCY", notes="Dấu hiệu đe dọa nhồi máu cơ tim cấp. Gọi ngay 115!"),
-            SymptomMapping(symptom_keyword="ép ngực", symptom_tag="Khó thở", department_id=dept_map["CARDIOLOGY"], severity="EMERGENCY", notes="Nguy cơ suy tim cấp hoặc thắt ngực ổn định."),
-            SymptomMapping(symptom_keyword="hồi hộp đánh trống ngực", symptom_tag="Tim đập nhanh", department_id=dept_map["CARDIOLOGY"], severity="HIGH", notes="Rối loạn nhịp tim."),
-            
-            # Da liễu
-            SymptomMapping(symptom_keyword="nổi mẩn đỏ", symptom_tag="Nổi mẩn", department_id=dept_map["DERMATOLOGY"], severity="MEDIUM", notes="Biểu hiện dị ứng ngoài da hoặc mề đay."),
-            SymptomMapping(symptom_keyword="ngứa da", symptom_tag="Ngứa ngoài da", department_id=dept_map["DERMATOLOGY"], severity="LOW", notes="Viêm da tiếp xúc hoặc chàm."),
-            SymptomMapping(symptom_keyword="mụn viêm", symptom_tag="Mụn nhọt", department_id=dept_map["DERMATOLOGY"], severity="LOW", notes="Mụn trứng cá nhiễm khuẩn."),
-
-            # Tai Mũi Họng
-            SymptomMapping(symptom_keyword="đau họng", symptom_tag="Đau họng", department_id=dept_map["ENT"], severity="MEDIUM", notes="Viêm họng cấp hoặc viêm amidan."),
-            SymptomMapping(symptom_keyword="sổ mũi", symptom_tag="Sổ mũi", department_id=dept_map["ENT"], severity="LOW", notes="Viêm mũi dị ứng hoặc cảm cúm."),
-            SymptomMapping(symptom_keyword="ù tai", symptom_tag="Ù tai", department_id=dept_map["ENT"], severity="MEDIUM", notes="Tổn thương màng nhĩ hoặc rối loạn vòi eustache."),
-
-            # Nội khoa
-            SymptomMapping(symptom_keyword="sốt cao", symptom_tag="Sốt", department_id=dept_map["INTERNAL_MEDICINE"], severity="HIGH", notes="Nhiễm trùng cấp tính hoặc sốt xuất huyết."),
-            SymptomMapping(symptom_keyword="ho kéo dài", symptom_tag="Ho", department_id=dept_map["INTERNAL_MEDICINE"], severity="MEDIUM", notes="Viêm phế quản hoặc nhiễm trùng đường hô hấp."),
-            SymptomMapping(symptom_keyword="đau bụng quanh rốn", symptom_tag="Đau bụng", department_id=dept_map["INTERNAL_MEDICINE"], severity="HIGH", notes="Theo dõi viêm ruột thừa hoặc rối loạn tiêu hóa."),
-
-            # Thần kinh
-            SymptomMapping(symptom_keyword="đau đầu dữ dội", symptom_tag="Đau đầu", department_id=dept_map["NEUROLOGY"], severity="HIGH", notes="Migraine hoặc tăng áp lực nội sọ."),
-            SymptomMapping(symptom_keyword="chóng mặt tiền đình", symptom_tag="Chóng mặt", department_id=dept_map["NEUROLOGY"], severity="MEDIUM", notes="Rối loạn tiền đình hoặc thiếu máu não."),
-
-            # Nhi khoa
-            SymptomMapping(symptom_keyword="trẻ sốt quấy khóc", symptom_tag="Trẻ sốt", department_id=dept_map["PEDIATRICS"], severity="HIGH", notes="Sốt vi rút hoặc nhiễm trùng tai mũi họng ở trẻ em.")
+        # 3. Seed Từ khóa Cấp cứu Nguy hiểm (Red Flags Rules)
+        tu_khoa_cap_cuu = [
+            TuKhoaCapCuu(tu_khoa="đau ngực dữ dội", muc_do_nguy_hiem="rat_nguy_hiem", huong_dan_xu_tri="Nghi ngờ nhồi máu cơ tim cấp. Gọi ngay cấp cứu 115!"),
+            TuKhoaCapCuu(tu_khoa="khó thở cấp", muc_do_nguy_hiem="rat_nguy_hiem", huong_dan_xu_tri="Suy hô hấp cấp tính. Hãy gọi 115 hoặc đưa đến phòng Cấp cứu ngay lập tức."),
+            TuKhoaCapCuu(tu_khoa="ngất xỉu", muc_do_nguy_hiem="nguy_hiem", huong_dan_xu_tri="Mất ý thức đột ngột. Gọi cấp cứu 115 ngay lập tức!"),
+            TuKhoaCapCuu(tu_khoa="co giật", muc_do_nguy_hiem="rat_nguy_hiem", huong_dan_xu_tri="Cơn co giật toàn thân. Cho bệnh nhân nằm nghiêng thông thoáng và gọi 115."),
+            TuKhoaCapCuu(tu_khoa="liệt nửa người", muc_do_nguy_hiem="rat_nguy_hiem", huong_dan_xu_tri="Dấu hiệu đột quỵ não cấp (giờ vàng). Gọi 115 khẩn cấp!"),
+            TuKhoaCapCuu(tu_khoa="nôn ra máu", muc_do_nguy_hiem="rat_nguy_hiem", huong_dan_xu_tri="Xuất huyết tiêu hóa cấp tính. Cần đến bệnh viện cấp cứu ngay!"),
         ]
-        db.add_all(rules)
-        db.commit()
+        session.add_all(tu_khoa_cap_cuu)
 
-        print("[SEED] Seeding System Users & Roles...")
-        # Admin User
-        admin_user = User(
-            full_name="Quản trị viên Hệ thống",
-            email="admin@healthcare.com",
-            phone="0901111111",
-            hashed_password=get_password_hash("admin123"),
-            role="ADMIN"
+        # 4. Seed Danh mục Dịch vụ Cận lâm sàng (OpenMRS Medical Service)
+        dich_vus = [
+            DichVu(ma_dich_vu="DV_XN_MAU", ten_dich_vu="Tổng phân tích tế bào máu ngoại vi (18 chỉ số)", don_gia=120000.00, don_vi_tinh="Lần"),
+            DichVu(ma_dich_vu="DV_XQ_NGUC", ten_dich_vu="Chụp X-quang tim phổi thẳng kỹ thuật số (CR/DR)", don_gia=180000.00, don_vi_tinh="Lần"),
+            DichVu(ma_dich_vu="DV_SA_BUNG", ten_dich_vu="Siêu âm ổ bụng tổng quát màu Doppler", don_gia=200000.00, don_vi_tinh="Lần"),
+            DichVu(ma_dich_vu="DV_ECG", ten_dich_vu="Điện tâm đồ (ECG) 12 chuyển đạo", don_gia=100000.00, don_vi_tinh="Lần"),
+            DichVu(ma_dich_vu="DV_NS_TMH", ten_dich_vu="Nội soi Tai - Mũi - Họng ống mềm", don_gia=250000.00, don_vi_tinh="Lần"),
+        ]
+        session.add_all(dich_vus)
+
+        # 5. Seed Từ điển Khái niệm Y tế Chuẩn hóa ICD-10 (OpenMRS Concept Dictionary)
+        khai_niems = [
+            KhaiNiem(ma_khai_niem="I10", ten_khai_niem="Bệnh tăng huyết áp vô căn (nguyên phát)", loai_khai_niem="benh_icd10"),
+            KhaiNiem(ma_khai_niem="K29", ten_khai_niem="Viêm dạ dày và tá tràng", loai_khai_niem="benh_icd10"),
+            KhaiNiem(ma_khai_niem="H81", ten_khai_niem="Rối loạn chức năng tiền đình", loai_khai_niem="benh_icd10"),
+            KhaiNiem(ma_khai_niem="J00", ten_khai_niem="Viêm mũi họng cấp (cảm thường)", loai_khai_niem="benh_icd10"),
+            KhaiNiem(ma_khai_niem="M17", ten_khai_niem="Thoái hóa khớp gối", loai_khai_niem="benh_icd10"),
+        ]
+        session.add_all(khai_niems)
+
+        # 6. Seed Tài khoản Quản trị viên (Admin)
+        nd_admin = NguoiDung(
+            ho_ten="Quản Trị Viên Hệ Thống",
+            email="admin@clinic.com",
+            so_dien_thoai="0988000001",
+            ngay_sinh=date(1990, 1, 1),
+            gioi_tinh="Nam"
         )
-        db.add(admin_user)
+        session.add(nd_admin)
+        await session.flush()
 
-        # Patient User
-        patient_user = User(
-            full_name="Nguyễn Văn An (Bệnh nhân)",
-            email="patient@gmail.com",
-            phone="0988888888",
-            hashed_password=get_password_hash("patient123"),
-            role="PATIENT"
+        tk_admin = TaiKhoan(
+            nguoi_dung_id=nd_admin.id,
+            email="admin@clinic.com",
+            mat_khau_hash=hash_password("Admin@123456"),
+            vai_tro=VaiTroEnum.ADMIN.value,
+            is_active=True
         )
-        db.add(patient_user)
-        db.commit()
-        db.refresh(patient_user)
+        session.add(tk_admin)
 
-        patient_profile = PatientProfile(
-            user_id=patient_user.id,
-            date_of_birth="1995-08-20",
-            gender="Nam",
-            blood_type="O+",
-            allergies="Dị ứng Penicillin",
-            medical_history="Tiền sử dị ứng thời tiết",
-            emergency_contact="0912345678 (Vợ: Lê Thị Bích)"
-        )
-        db.add(patient_profile)
-
-        # Doctors
-        doctors_data = [
-            {
-                "full_name": "PGS.TS.BS Phạm Hoàng Nam",
-                "email": "dr.nam@healthcare.com",
-                "phone": "0902222221",
-                "title": "PGS.TS.BS",
-                "dept_code": "CARDIOLOGY",
-                "years": 22,
-                "fee": 500000.0,
-                "bio": "Trưởng khoa Tim mạch, hơn 22 năm kinh nghiệm chẩn đoán và can thiệp mạch vành."
-            },
-            {
-                "full_name": "ThS.BS Trần Thị Mai",
-                "email": "dr.mai@healthcare.com",
-                "phone": "0902222222",
-                "title": "ThS.BS",
-                "dept_code": "DERMATOLOGY",
-                "years": 12,
-                "fee": 350000.0,
-                "bio": "Chuyên gia trị liệu da liễu thẩm mỹ, mề đay mãn tính và viêm da cơ địa."
-            },
-            {
-                "full_name": "BS.CKII Lê Văn Đức",
-                "email": "dr.duc@healthcare.com",
-                "phone": "0902222223",
-                "title": "BS.CKII",
-                "dept_code": "INTERNAL_MEDICINE",
-                "years": 18,
-                "fee": 400000.0,
-                "bio": "Chuyên khoa Nội tổng hợp, tiêu hóa, hô hấp và quản lý bệnh mãn tính."
-            },
-            {
-                "full_name": "BS.CKI Đặng Thu Hà",
-                "email": "dr.ha@healthcare.com",
-                "phone": "0902222224",
-                "title": "BS.CKI",
-                "dept_code": "ENT",
-                "years": 9,
-                "fee": 300000.0,
-                "bio": "Chuyên gia khám điều trị nội soi Tai Mũi Họng, viêm xoang và viêm amidan."
-            }
+        # 7. Seed Bác sĩ chuyên khoa mẫu (OpenMRS Providers)
+        bac_si_samples = [
+            ("BS. CKI Nguyễn Văn An", "an.doctor@clinic.com", "0988000101", "BSCKI", chuyen_khoas[1].id, 8, "Chuyên sâu tăng huyết áp và bệnh mạch vành", 250000.00),
+            ("ThS. BS Trần Thị Bích", "bich.doctor@clinic.com", "0988000102", "ThS.BS", chuyen_khoas[2].id, 10, "Chuyên điều trị dạ dày, đại tràng và trào ngược dạ dày thực quản", 200000.00),
+            ("BS. Lê Hoàng Long", "long.doctor@clinic.com", "0988000103", "BS", chuyen_khoas[3].id, 6, "Nội soi TMH và điều trị hội chứng tiền đình", 200000.00),
+            ("PGS.TS Phạm Đức Minh", "minh.doctor@clinic.com", "0988000104", "PGS.TS", chuyen_khoas[0].id, 20, "Trưởng khoa Nội tổng hợp - chuyên gia chẩn đoán bệnh lý mạn tính", 300000.00),
         ]
 
-        for ddata in doctors_data:
-            doc_u = User(
-                full_name=ddata["full_name"],
-                email=ddata["email"],
-                phone=ddata["phone"],
-                hashed_password=get_password_hash("doctor123"),
-                role="DOCTOR"
-            )
-            db.add(doc_u)
-            db.commit()
-            db.refresh(doc_u)
+        created_doctors = []
+        for name, email, phone, title, ck_id, exp_years, desc, price in bac_si_samples:
+            nd = NguoiDung(ho_ten=name, email=email, so_dien_thoai=phone, ngay_sinh=date(1985, 5, 20), gioi_tinh="Nam")
+            session.add(nd)
+            await session.flush()
 
-            doc_p = DoctorProfile(
-                user_id=doc_u.id,
-                department_id=dept_map[ddata["dept_code"]],
-                title=ddata["title"],
-                years_experience=ddata["years"],
-                consultation_fee=ddata["fee"],
-                bio=ddata["bio"],
-                rating_avg=4.9,
-                rating_count=38
+            tk = TaiKhoan(
+                nguoi_dung_id=nd.id,
+                email=email,
+                mat_khau_hash=hash_password("Doctor@123456"),
+                vai_tro=VaiTroEnum.BAC_SI.value,
+                is_active=True
             )
-            db.add(doc_p)
-            db.commit()
-            db.refresh(doc_p)
+            session.add(tk)
 
-            # Create default schedules (Mon-Fri)
-            for day in range(5):
-                sched = DoctorSchedule(
-                    doctor_id=doc_p.id,
-                    day_of_week=day,
-                    start_time="08:00",
-                    end_time="17:00"
+            bs = BacSi(
+                nguoi_dung_id=nd.id,
+                chuyen_khoa_id=ck_id,
+                hoc_vi=title,
+                chung_chi_hanh_nghe=f"CCHN-{phone}",
+                nam_kinh_nghiem=exp_years,
+                mo_ta_chuyen_sau=desc,
+                gia_kham_mac_dinh=price,
+                is_active=True
+            )
+            session.add(bs)
+            await session.flush()
+            created_doctors.append(bs)
+
+        # 8. Seed Lịch làm việc 14 ngày cho các Bác sĩ (OpenMRS Appointment Blocks)
+        today = date.today()
+        for i in range(14):
+            work_date = today + timedelta(days=i)
+            for bs in created_doctors:
+                # Ca sáng: 07:30 - 11:30 (8 slots 30p)
+                session.add(
+                    LichLamViec(
+                        bac_si_id=bs.id,
+                        ngay_lam_viec=work_date,
+                        ca_lam_viec=CaLamViecEnum.SANG.value,
+                        gio_bat_dau=time(7, 30),
+                        gio_ket_thuc=time(11, 30),
+                        gioi_han_ca_kham=8,
+                        is_active=True
+                    )
                 )
-                db.add(sched)
-        db.commit()
+                # Ca chiều: 13:30 - 17:00 (7 slots 30p)
+                session.add(
+                    LichLamViec(
+                        bac_si_id=bs.id,
+                        ngay_lam_viec=work_date,
+                        ca_lam_viec=CaLamViecEnum.CHIEU.value,
+                        gio_bat_dau=time(13, 30),
+                        gio_ket_thuc=time(17, 0),
+                        gioi_han_ca_kham=7,
+                        is_active=True
+                    )
+                )
 
-        print("[SEED] Seeding Historical Appointments & AI Feedback...")
-        doc1 = db.query(DoctorProfile).first()
-        sample_apt = Appointment(
-            appointment_code="APT-20260901-7712",
-            patient_id=patient_user.id,
-            doctor_id=doc1.id,
-            department_id=doc1.department_id,
-            appointment_date="2026-09-01",
-            start_time="09:00",
-            end_time="09:30",
-            status="COMPLETED",
-            symptoms_text="Thỉnh thoảng đau thắt ngực khi leo cầu thang, kèm hồi hộp tim đập nhanh.",
-            symptom_tags=["Đau ngực", "Tim đập nhanh"],
-            ai_analysis={
-                "is_emergency": False,
-                "recommended_department_code": "CARDIOLOGY",
-                "recommended_department_name": "Tim mạch",
-                "confidence_score": 0.91,
-                "medical_explanation": "Triệu chứng đau thắt ngực liên quan gắng sức gợi ý kiểm tra tim mạch tầm soát bệnh mạch vành.",
-                "suggested_action": "Khám chuyên khoa Tim mạch ngay"
-            },
-            diagnosis="Theo dõi Thiếu máu cơ tim thoáng qua / Rối loạn thần kinh tim",
-            prescription="1. Concor 5mg - Uống 1 viên/sáng\n2. Magnesium B6 - Uống 2 viên/ngày chia 2 lần",
-            doctor_notes="Bệnh nhân cần nghỉ ngơi, tránh căng thẳng, đo huyết áp định kỳ."
+        # 9. Seed Bệnh nhân mẫu sẵn sàng test (OpenMRS Patient)
+        nd_patient = NguoiDung(
+            ho_ten="Nguyễn Thị Bệnh Nhân",
+            email="patient@test.com",
+            so_dien_thoai="0912345678",
+            ngay_sinh=date(1998, 10, 15),
+            gioi_tinh="Nữ",
+            dia_chi="Cầu Giấy, Hà Nội"
         )
-        db.add(sample_apt)
-        db.commit()
-        db.refresh(sample_apt)
+        session.add(nd_patient)
+        await session.flush()
 
-        fb = AIFeedback(
-            appointment_id=sample_apt.id,
-            patient_id=patient_user.id,
-            rating=5,
-            comment="AI gợi ý đúng chuyên khoa Tim mạch! Bác sĩ Phạm Hoàng Nam khám rất kỹ và tận tâm.",
-            was_accurate=True
+        tk_patient = TaiKhoan(
+            nguoi_dung_id=nd_patient.id,
+            email="patient@test.com",
+            mat_khau_hash=hash_password("Patient@123456"),
+            vai_tro=VaiTroEnum.BENH_NHAN.value,
+            is_active=True
         )
-        db.add(fb)
-        db.commit()
+        session.add(tk_patient)
 
-        print("[SUCCESS] Seed data populated successfully!")
-        print("--------------------------------------------------")
-        print("Test Accounts:")
-        print("   Admin:   admin@healthcare.com / admin123")
-        print("   Doctor:  dr.nam@healthcare.com / doctor123")
-        print("   Patient: patient@gmail.com / patient123  (Or Phone: 0988888888 / OTP: 123456)")
+        bn_profile = BenhNhan(
+            nguoi_dung_id=nd_patient.id,
+            ma_dinh_danh_y_te="BN-2026-0001",
+            nhom_mau="O+",
+            tien_su_benh="Viêm dạ dày nhẹ",
+            di_ung_thuoc="Dị ứng Penicillin",
+            diem_tin_nhiem=100,
+            so_lan_no_show=0
+        )
+        session.add(bn_profile)
+        await session.flush()
 
-        print("--------------------------------------------------")
+        # 10. Seed 1 Lịch khám & Phiên khám mẫu hoàn chỉnh (OpenMRS Encounter + Diagnosis + Prescription)
+        lich_mau = LichKham(
+            ma_lich_kham="LK-20260918-01001",
+            benh_nhan_id=bn_profile.id,
+            bac_si_id=created_doctors[0].id,
+            ngay_kham=today - timedelta(days=2),
+            gio_kham=time(8, 30),
+            so_thu_tu=1,
+            ly_do_kham="Hồi hộp, tức ngực trái khi gắng sức",
+            trieu_chung_ban_dau="Thỉnh thoảng đau nhói ngực trái, hồi hộp",
+            trang_thai=TrangThaiLichEnum.DA_KHAM.value,
+            is_reconfirmed_24h=True
+        )
+        session.add(lich_mau)
+        await session.flush()
 
-    except Exception as e:
-        db.rollback()
-        print(f"[ERROR] Error seeding database: {e}")
-        raise e
-    finally:
-        db.close()
+        # Phiên khám thực tế (Encounter)
+        luot_kham_mau = LuotKham(
+            lich_kham_id=lich_mau.id,
+            bac_si_id=created_doctors[0].id,
+            benh_nhan_id=bn_profile.id,
+            thoi_gian_bat_dau=datetime.now(timezone.utc) - timedelta(days=2, hours=3),
+            thoi_gian_ket_thuc=datetime.now(timezone.utc) - timedelta(days=2, hours=2, minutes=30),
+            ly_do_vao_kham="Đau nhói ngực trái, mệt khi leo cầu thang",
+            benh_su="Bị khoảng 1 tuần nay, không sốt, không khó thở khi nghỉ",
+            mach_lan_phut=78,
+            nhiet_do_c=36.8,
+            huyet_ap_tam_thu=135,
+            huyet_ap_tam_truong=85,
+            ket_luan_dieu_tri="Theo dõi tăng huyết áp độ 1, rối loạn thần kinh tim",
+            loi_dan_bac_si="Hạn chế ăn mặn, tập thể dục nhẹ nhàng, tái khám sau 2 tuần",
+            ngay_hen_tai_kham=today + timedelta(days=12),
+            is_locked=True,
+            thoi_gian_khoa=datetime.now(timezone.utc) - timedelta(days=2, hours=2, minutes=30)
+        )
+        session.add(luot_kham_mau)
+        await session.flush()
+
+        # Chẩn đoán ICD-10 gắn vào phiên khám
+        chan_doan_mau = ChanDoan(
+            luot_kham_id=luot_kham_mau.id,
+            khai_niem_id=khai_niems[0].id,
+            ma_icd10="I10",
+            ten_benh_chan_doan="Bệnh tăng huyết áp vô căn (nguyên phát)",
+            loai_chan_doan="chinh"
+        )
+        session.add(chan_doan_mau)
+
+        # Đơn thuốc mẫu kèm chi tiết
+        don_thuoc_mau = DonThuoc(
+            luot_kham_id=luot_kham_mau.id,
+            bac_si_ke_don_id=created_doctors[0].id,
+            ngay_ke_don=datetime.now(timezone.utc) - timedelta(days=2, hours=2, minutes=35),
+            loi_dan_uong_thuoc="Uống thuốc đều đặn vào buổi sáng sau ăn no"
+        )
+        session.add(don_thuoc_mau)
+        await session.flush()
+
+        thuoc_1 = ChiTietDonThuoc(
+            don_thuoc_id=don_thuoc_mau.id,
+            ten_thuoc="Amlodipine 5mg",
+            hoat_chat="Amlodipine besylate",
+            ham_luong="5mg",
+            don_vi_tinh="Viên",
+            so_luong=14,
+            cach_dung="Sáng 1 viên sau ăn",
+            so_ngay_dung=14
+        )
+        session.add(thuoc_1)
+
+        await session.commit()
+        print("✅ [SEEDING COMPLETED] Đã khởi tạo thành công trọn vẹn 18 bảng CSDL chuẩn OpenMRS:")
+        print("   - 8 Chuyên khoa + 6 Từ khóa Red Flags + 5 Dịch vụ + 5 Khái niệm ICD-10")
+        print("   - 4 Bác sĩ chuyên khoa + Lịch trực 14 ngày (sáng/chiều)")
+        print("   - 1 Ca khám mẫu + Đơn thuốc + Chẩn đoán ICD-10 (Read-only)")
+        print("   - Tài khoản Admin:      admin@clinic.com   / Admin@123456")
+        print("   - Tài khoản Bác sĩ:     an.doctor@clinic.com / Doctor@123456")
+        print("   - Tài khoản Bệnh nhân:  patient@test.com   / Patient@123456")
+
 
 if __name__ == "__main__":
-    seed_database()
+    asyncio.run(seed_database())
