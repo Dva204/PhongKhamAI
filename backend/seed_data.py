@@ -10,7 +10,7 @@ from app.models.medical import TuKhoaCapCuu, DichVu, KhaiNiem, LuotKham, ChanDoa
 
 async def seed_database():
     """Khởi tạo tập dữ liệu ban đầu cho toàn bộ 18 bảng CSDL PostgreSQL phòng khám theo chuẩn OpenMRS"""
-    print("🌱 [SEEDING] Đang kết nối PostgreSQL và khởi tạo dữ liệu mẫu...")
+    print("[SEEDING] Dang ket noi CSDL va khoi tao du lieu mau...")
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -20,7 +20,7 @@ async def seed_database():
         stmt_check = select(ChuyenKhoa)
         existing = (await session.execute(stmt_check)).first()
         if existing:
-            print("⚠️ [SEEDING] CSDL đã có dữ liệu từ trước. Bỏ qua bước seed!")
+            print("[SEEDING] CSDL da co du lieu tu truoc. Bo qua buoc seed!")
             return
 
         # 2. Seed Danh mục Chuyên khoa (OpenMRS Department)
@@ -259,13 +259,14 @@ async def seed_database():
         session.add(thuoc_1)
 
         await session.commit()
-        print("✅ [SEEDING COMPLETED] Đã khởi tạo thành công trọn vẹn 18 bảng CSDL chuẩn OpenMRS:")
-        print("   - 8 Chuyên khoa + 6 Từ khóa Red Flags + 5 Dịch vụ + 5 Khái niệm ICD-10")
-        print("   - 4 Bác sĩ chuyên khoa + Lịch trực 14 ngày (sáng/chiều)")
-        print("   - 1 Ca khám mẫu + Đơn thuốc + Chẩn đoán ICD-10 (Read-only)")
-        print("   - Tài khoản Admin:      admin@clinic.com   / Admin@123456")
-        print("   - Tài khoản Bác sĩ:     an.doctor@clinic.com / Doctor@123456")
-        print("   - Tài khoản Bệnh nhân:  patient@test.com   / Patient@123456")
+        print("[SEEDING COMPLETED] Da khoi tao thanh cong du lieu mau:")
+        print("   - 8 Chuyen khoa + 6 Tu khoa Red Flags + 5 Dich vu + 5 Khai niem ICD-10")
+        print("   - 4 Bac si chuyen khoa + Lich truc 14 ngay (sang/chieu)")
+        print("   - 1 Ca kham mau + Don thuoc + Chan doan ICD-10")
+        print("   - Tai khoan Admin:      admin@clinic.com   / Admin@123456")
+        print("   - Tai khoan Bac si:     an.doctor@clinic.com / Doctor@123456")
+        print("   - Tai khoan Benh nhan:  patient@test.com   / Patient@123456")
+
 
 
 if __name__ == "__main__":

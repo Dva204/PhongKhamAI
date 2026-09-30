@@ -3,14 +3,20 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
-# Khởi tạo Async Engine cho PostgreSQL với connection pooling
-engine = create_async_engine(
-    settings.async_database_url,
-    echo=settings.DEBUG,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True
-)
+db_url = settings.async_database_url
+engine_kwargs = {"echo": settings.DEBUG}
+
+if "sqlite" in db_url:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs.update({
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_pre_ping": True
+    })
+
+# Khởi tạo Async Engine
+engine = create_async_engine(db_url, **engine_kwargs)
 
 # Async Session Factory
 AsyncSessionLocal = async_sessionmaker(

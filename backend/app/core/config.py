@@ -32,7 +32,9 @@ class Settings(BaseSettings):
     def async_database_url(self) -> str:
         if self.DATABASE_URL:
             return self.DATABASE_URL
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        # SQLite local fallback for quick dev startup without PostgreSQL requirement
+        return f"sqlite+aiosqlite:///./clinic_local.db"
+
 
     # JWT Authentication
     SECRET_KEY: str = "super_secret_clinic_jwt_key_project_1_change_in_production_2026"
