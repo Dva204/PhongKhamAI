@@ -7,8 +7,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [loginMethod, setLoginMethod] = useState('password'); // 'password', 'phone'
 
   // Form Fields
-  const [emailOrPhone, setEmailOrPhone] = useState('patient@gmail.com');
-  const [password, setPassword] = useState('patient123');
+  const [emailOrPhone, setEmailOrPhone] = useState('patient@test.com');
+  const [password, setPassword] = useState('Patient@123456');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('0988888888');
   const [otpCode, setOtpCode] = useState('123456');
@@ -25,14 +25,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const fillDemoAccount = (demoRole) => {
     setFormError('');
     if (demoRole === 'PATIENT') {
-      setEmailOrPhone('patient@gmail.com');
-      setPassword('patient123');
+      setEmailOrPhone('patient@test.com');
+      setPassword('Patient@123456');
     } else if (demoRole === 'DOCTOR') {
-      setEmailOrPhone('dr.nam@healthcare.com');
-      setPassword('doctor123');
+      setEmailOrPhone('an.doctor@clinic.com');
+      setPassword('Doctor@123456');
     } else if (demoRole === 'ADMIN') {
-      setEmailOrPhone('admin@healthcare.com');
-      setPassword('admin123');
+      setEmailOrPhone('admin@clinic.com');
+      setPassword('Admin@123456');
     }
   };
 

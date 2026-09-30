@@ -134,3 +134,80 @@ async def get_my_appointments(
         data=appointments,
         message="Lấy danh sách lịch hẹn thành công"
     )
+
+
+@router.get(
+    "/doctor-shift",
+    response_model=ResponseEnvelope[List[AppointmentResponse]],
+    summary="Bác sĩ xem danh sách lịch hẹn khám trong ca làm việc"
+)
+async def get_doctor_shift_appointments(
+    date_str: Optional[str] = Query(None, description="Ngày khám (YYYY-MM-DD)"),
+    current_user: TaiKhoan = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt_lk = (
+        select(LichKham, BacSi, NguoiDung, ChuyenKhoa, BenhNhan)
+        .join(BacSi, LichKham.bac_si_id == BacSi.id)
+        .join(NguoiDung, BacSi.nguoi_dung_id == NguoiDung.id)
+        .outerjoin(ChuyenKhoa, BacSi.chuyen_khoa_id == ChuyenKhoa.id)
+        .join(BenhNhan, LichKham.benh_nhan_id == BenhNhan.id)
+        .order_by(LichKham.ngay_kham.asc(), LichKham.gio_kham.asc())
+    )
+    rows = (await db.execute(stmt_lk)).all()
+
+    appointments = []
+    for lk, bs, bs_info, ck, bn in rows:
+        stmt_bn_info = select(NguoiDung).where(NguoiDung.id == bn.nguoi_dung_id)
+        bn_user = (await db.execute(stmt_bn_info)).scalar_one_or_none()
+        appointments.append(
+            AppointmentResponse(
+                id=lk.id,
+                ma_lich_kham=lk.ma_lich_kham,
+                ngay_kham=lk.ngay_kham,
+                gio_kham=lk.gio_kham,
+                so_thu_tu=lk.so_thu_tu,
+                trang_thai=lk.trang_thai,
+                ly_do_kham=lk.ly_do_kham,
+                trieu_chung_ban_dau=lk.trieu_chung_ban_dau,
+                bac_si=DoctorBriefResponse(
+                    id=bs.id,
+                    ho_ten=bs_info.ho_ten,
+                    chuyen_khoa=ck.ten_chuyen_khoa if ck else "Đa khoa",
+                    hoc_vi=bs.hoc_vi
+                ),
+                benh_nhan=PatientBriefResponse(
+                    id=bn.id,
+                    ho_ten=bn_user.ho_ten if bn_user else "Bệnh nhân",
+                    so_dien_thoai=bn_user.so_dien_thoai if bn_user else None
+                )
+            )
+        )
+
+    return ResponseEnvelope.success_response(
+        data=appointments,
+        message="Lấy danh sách ca khám thành công"
+    )
+
+
+@router.put(
+    "/{appointment_id}/complete",
+    response_model=ResponseEnvelope[dict],
+    summary="Bác sĩ hoàn thành ca khám và lưu hồ sơ bệnh án"
+)
+async def complete_appointment(
+    appointment_id: int,
+    current_user: TaiKhoan = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(LichKham).where(LichKham.id == appointment_id)
+    lk = (await db.execute(stmt)).scalar_one_or_none()
+    if lk:
+        lk.trang_thai = "da_kham"
+        await db.commit()
+
+    return ResponseEnvelope.success_response(
+        data={"appointment_id": appointment_id, "status": "da_kham"},
+        message="Đã hoàn thành ca khám thành công!"
+    )
+
