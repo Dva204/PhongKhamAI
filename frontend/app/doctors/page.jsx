@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
-import { Stethoscope, Search, MapPin, Star, Filter, Calendar, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Filter, Calendar } from 'lucide-react';
 import ApiService from '../../services/api';
 
 export default function DoctorsDirectoryPage() {
@@ -25,7 +25,7 @@ export default function DoctorsDirectoryPage() {
       consultation_fee: 500000,
       rating_avg: 4.9,
       rating_count: 42,
-      hospital_address: 'Bệnh viện Đa khoa Quốc tế — Tầng 3, Khoa Tim mạch',
+      hospital_address: 'Bệnh viện Đa khoa Quốc tế TNH — Tầng 3, Khoa Tim mạch',
       bio: 'Trưởng khoa Tim mạch với 22 năm kinh nghiệm chẩn đoán và điều trị bệnh mạch vành, rối loạn nhịp tim và tăng huyết áp.'
     },
     {
@@ -38,7 +38,7 @@ export default function DoctorsDirectoryPage() {
       consultation_fee: 350000,
       rating_avg: 4.8,
       rating_count: 29,
-      hospital_address: 'Bệnh viện Đa khoa Quốc tế — Tầng 2, Khoa Da liễu',
+      hospital_address: 'Bệnh viện Đa khoa Quốc tế TNH — Tầng 2, Khoa Da liễu',
       bio: 'Chuyên gia trị liệu da liễu thẩm mỹ, mề đay mãn tính, chàm và các biểu hiện viêm da dị ứng.'
     },
     {
@@ -51,7 +51,7 @@ export default function DoctorsDirectoryPage() {
       consultation_fee: 400000,
       rating_avg: 4.95,
       rating_count: 51,
-      hospital_address: 'Bệnh viện Đa khoa Quốc tế — Tầng 1, Khoa Nội tổng quát',
+      hospital_address: 'Bệnh viện Đa khoa Quốc tế TNH — Tầng 1, Khoa Nội tổng quát',
       bio: 'Chuyên khoa Nội tổng hợp, quản lý bệnh mãn tính đường tiêu hóa, hô hấp và tuần hoàn.'
     },
     {
@@ -64,10 +64,29 @@ export default function DoctorsDirectoryPage() {
       consultation_fee: 300000,
       rating_avg: 4.75,
       rating_count: 18,
-      hospital_address: 'Bệnh viện Đa khoa Quốc tế — Tầng 4, Khoa Tai Mũi Họng',
+      hospital_address: 'Bệnh viện Đa khoa Quốc tế TNH — Tầng 4, Khoa Tai Mũi Họng',
       bio: 'Chuyên gia khám và điều trị nội soi Tai Mũi Họng, viêm xoang cấp, viêm amidan và tổn thương màng nhĩ.'
     }
   ];
+
+  const normalizeDoctor = (doc) => ({
+    id: doc.id,
+    full_name: doc.full_name || doc.ho_ten || 'Bác sĩ chuyên khoa',
+    title: doc.title || doc.hoc_vi || 'BS.CKI',
+    department_name: doc.department_name || doc.chuyen_khoa || 'Đa khoa',
+    department_id: doc.department_id || doc.chuyen_khoa_id || 'ALL',
+    years_experience: doc.years_experience || 10,
+    consultation_fee: doc.consultation_fee || 350000,
+    rating_avg: doc.rating_avg || 4.9,
+    rating_count: doc.rating_count || 25,
+    hospital_address: doc.hospital_address || 'Bệnh viện Đa khoa Quốc tế TNH',
+    bio: doc.bio || 'Chuyên gia nhiều năm kinh nghiệm khám và điều trị bệnh chuyên khoa.'
+  });
+
+  const normalizeDepartment = (d) => ({
+    id: d.id,
+    name: d.name || d.ten_chuyen_khoa || 'Chuyên khoa'
+  });
 
   useEffect(() => {
     fetchData();
@@ -78,19 +97,27 @@ export default function DoctorsDirectoryPage() {
     try {
       const docs = await ApiService.getDoctors();
       const depts = await ApiService.getDepartments();
-      if (docs && docs.length > 0) setDoctors(docs);
-      else setDoctors(defaultDoctorsData);
-      if (depts) setDepartments(depts);
+      if (Array.isArray(docs) && docs.length > 0) {
+        setDoctors(docs.map(normalizeDoctor));
+      } else {
+        setDoctors(defaultDoctorsData.map(normalizeDoctor));
+      }
+      if (Array.isArray(depts) && depts.length > 0) {
+        setDepartments(depts.map(normalizeDepartment));
+      }
     } catch (e) {
-      setDoctors(defaultDoctorsData);
+      setDoctors(defaultDoctorsData.map(normalizeDoctor));
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredDoctors = (doctors.length > 0 ? doctors : defaultDoctorsData).filter(doc => {
-    const matchesSearch = doc.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          doc.department_name?.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredDoctors = doctors.filter(doc => {
+    const fullNameStr = (doc.full_name || '').toLowerCase();
+    const deptNameStr = (doc.department_name || '').toLowerCase();
+    const queryStr = (searchQuery || '').toLowerCase();
+
+    const matchesSearch = fullNameStr.includes(queryStr) || deptNameStr.includes(queryStr);
     const matchesDept = selectedDeptId === 'ALL' || String(doc.department_id) === String(selectedDeptId);
     return matchesSearch && matchesDept;
   });
@@ -147,7 +174,7 @@ export default function DoctorsDirectoryPage() {
             <div key={doc.id} className="medical-card p-6 space-y-4 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:border-[#1F6F5C]/60 transition">
               <div className="flex items-start space-x-4">
                 <div className="w-14 h-14 rounded-full bg-[#DCEAE6] text-[#1F6F5C] font-semibold flex items-center justify-center text-base flex-shrink-0">
-                  {doc.title.slice(0, 3)}
+                  {(doc.title || 'BS').slice(0, 6)}
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center space-x-2">
@@ -171,7 +198,7 @@ export default function DoctorsDirectoryPage() {
                 <div>
                   <span className="text-xs text-[#6B6A65] block">Phí khám tư vấn:</span>
                   <span className="text-base font-bold text-[#1F6F5C]">
-                    {doc.consultation_fee ? doc.consultation_fee.toLocaleString('vi-VN') : '350.000'} đ
+                    {doc.consultation_fee ? Number(doc.consultation_fee).toLocaleString('vi-VN') : '350.000'} đ
                   </span>
                 </div>
 

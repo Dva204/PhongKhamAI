@@ -257,6 +257,29 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
   ]);
 
   // Load Current User Profile on Mount
+  const normalizeDepartment = (d) => ({
+    id: d.id,
+    code: d.code || d.ma_chuyen_khoa || '',
+    name: d.name || d.ten_chuyen_khoa || 'Chuyên khoa',
+    doctor_count: d.doctor_count || 4,
+    description: d.description || d.mo_ta || 'Khám và tư vấn chuyên sâu các bệnh lý liên quan.',
+    conditions: d.conditions || ['Tầm soát bệnh lý', 'Khám chuyên khoa', 'Tư vấn điều trị']
+  });
+
+  const normalizeDoctor = (doc) => ({
+    id: doc.id,
+    full_name: doc.full_name || doc.ho_ten || 'Bác sĩ chuyên khoa',
+    title: doc.title || doc.hoc_vi || 'BS.CKI',
+    department_name: doc.department_name || doc.chuyen_khoa || 'Đa khoa',
+    department_id: doc.department_id || doc.chuyen_khoa_id || 1,
+    years_experience: doc.years_experience || 10,
+    consultation_fee: doc.consultation_fee || 350000,
+    rating_avg: doc.rating_avg || 4.9,
+    rating_count: doc.rating_count || 25,
+    hospital_address: doc.hospital_address || 'Bệnh viện Đa khoa Quốc tế TNH'
+  });
+
+  // Load Current User Profile on Mount
   useEffect(() => {
     fetchCurrentUser();
     fetchDepartments();
@@ -277,13 +300,13 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     setLoadingDepts(true);
     try {
       const depts = await ApiService.getDepartments();
-      if (depts && depts.length > 0) {
-        setDepartments(depts);
+      if (Array.isArray(depts) && depts.length > 0) {
+        setDepartments(depts.map(normalizeDepartment));
       } else {
-        setDepartments(initialDepartmentsData);
+        setDepartments(initialDepartmentsData.map(normalizeDepartment));
       }
     } catch (e) {
-      setDepartments(initialDepartmentsData);
+      setDepartments(initialDepartmentsData.map(normalizeDepartment));
     } finally {
       setLoadingDepts(false);
     }
@@ -300,8 +323,19 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     setLoadingSlots(true);
     setSelectedSlot(null);
     try {
-      const slots = await ApiService.getDoctorAvailableSlots(doctorId, dateStr);
-      setAvailableSlots(slots);
+      const res = await ApiService.getDoctorAvailableSlots(doctorId, dateStr);
+      if (res && Array.isArray(res.slots)) {
+        const formattedSlots = res.slots.map(s => ({
+          start_time: s.time_str,
+          end_time: s.time_str,
+          is_available: s.status === 'available'
+        }));
+        setAvailableSlots(formattedSlots.length > 0 ? formattedSlots : defaultSlots);
+      } else if (Array.isArray(res) && res.length > 0) {
+        setAvailableSlots(res);
+      } else {
+        setAvailableSlots(defaultSlots);
+      }
     } catch (e) {
       setAvailableSlots(defaultSlots);
     } finally {

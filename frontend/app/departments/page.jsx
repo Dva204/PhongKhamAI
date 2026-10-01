@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
-import { Stethoscope, Search, ArrowRight, ChevronRight, CheckCircle } from 'lucide-react';
+import { Stethoscope, Search, ChevronRight } from 'lucide-react';
 import ApiService from '../../services/api';
 
 export default function DepartmentsPage() {
@@ -12,7 +12,7 @@ export default function DepartmentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // 14 Medical Specialties Catalog Data (Per Item 1 in Specification Table)
+  // 14 Medical Specialties Catalog Data (Fallback)
   const initialDepartmentsData = [
     { id: 1, code: 'INTERNAL_MEDICINE', name: 'Nội tổng quát', doctor_count: 5, description: 'Chẩn đoán và điều trị bệnh lý đường tiêu hóa, hô hấp, tuần hoàn tổng quát.', conditions: ['Cảm cúm', 'Viêm phế quản', 'Rối loạn tiêu hóa', 'Sốt xuất huyết'] },
     { id: 2, code: 'CARDIOLOGY', name: 'Tim mạch', doctor_count: 4, description: 'Tầm soát bệnh mạch vành, tăng huyết áp, suy tim và rối loạn nhịp tim.', conditions: ['Tăng huyết áp', 'Thiếu máu cơ tim', 'Rối loạn nhịp tim', 'Đau thắt ngực'] },
@@ -30,6 +30,15 @@ export default function DepartmentsPage() {
     { id: 14, code: 'NUTRITION_ANDROLOGY', name: 'Dinh dưỡng & Nam học', doctor_count: 2, description: 'Tư vấn chế độ ăn bệnh lý, tăng giảm cân và khám sức khỏe nam giới.', conditions: ['Tư vấn dinh dưỡng bệnh lý', 'Rối loạn cương dương', 'Tầm soát sức khỏe nam giới', 'Suy giảm Testosterone'] }
   ];
 
+  const normalizeDepartment = (d) => ({
+    id: d.id,
+    code: d.code || d.ma_chuyen_khoa || '',
+    name: d.name || d.ten_chuyen_khoa || 'Chuyên khoa',
+    doctor_count: d.doctor_count || 4,
+    description: d.description || d.mo_ta || 'Khám và tư vấn chuyên sâu các bệnh lý liên quan.',
+    conditions: d.conditions || ['Tầm soát bệnh lý', 'Khám chuyên khoa', 'Tư vấn điều trị']
+  });
+
   useEffect(() => {
     fetchDepts();
   }, []);
@@ -38,22 +47,24 @@ export default function DepartmentsPage() {
     setLoading(true);
     try {
       const data = await ApiService.getDepartments();
-      if (data && data.length > 0) {
-        setDepartments(data);
+      if (Array.isArray(data) && data.length > 0) {
+        setDepartments(data.map(normalizeDepartment));
       } else {
-        setDepartments(initialDepartmentsData);
+        setDepartments(initialDepartmentsData.map(normalizeDepartment));
       }
     } catch (e) {
-      setDepartments(initialDepartmentsData);
+      setDepartments(initialDepartmentsData.map(normalizeDepartment));
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredDepts = (departments.length > 0 ? departments : initialDepartmentsData).filter(d =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredDepts = departments.filter(d => {
+    const nameStr = (d.name || '').toLowerCase();
+    const descStr = (d.description || '').toLowerCase();
+    const queryStr = (searchQuery || '').toLowerCase();
+    return nameStr.includes(queryStr) || descStr.includes(queryStr);
+  });
 
   return (
     <div className="min-h-screen bg-[#F7F5F0]">
@@ -95,7 +106,7 @@ export default function DepartmentsPage() {
                     <Stethoscope className="w-5 h-5" />
                   </div>
                   <span className="px-2.5 py-0.5 rounded-sm text-xs font-medium bg-[#F7F5F0] text-[#6B6A65] border border-[#E4E1D8]">
-                    {dept.doctor_count || 4} Bác sĩ
+                    {dept.doctor_count} Bác sĩ
                   </span>
                 </div>
 
