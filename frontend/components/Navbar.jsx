@@ -55,10 +55,8 @@ export default function Navbar() {
   const handleLogout = () => {
     ApiService.setToken(null);
     setCurrentUser(null);
-    if (pathname.includes('/doctor') || pathname.includes('/admin') || pathname.includes('/patient')) {
-      router.push('/');
-    } else {
-      window.location.reload();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
     }
   };
 

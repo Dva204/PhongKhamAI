@@ -38,7 +38,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   const normalizeUser = (u) => {
     if (!u) return null;
-    const rawRole = (u.vai_tro || u.role || 'benh_nhan').toLowerCase();
+    const rawRole = String(u.vai_tro || u.role || u.email || 'benh_nhan').toLowerCase();
     let normalizedRole = 'PATIENT';
     if (rawRole.includes('doctor') || rawRole.includes('bac_si') || rawRole.includes('bacsi')) {
       normalizedRole = 'DOCTOR';
@@ -48,7 +48,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     return {
       ...u,
       role: normalizedRole,
-      full_name: u.ho_ten || u.full_name || 'Người dùng',
+      full_name: u.ho_ten || u.full_name || u.email || 'Người dùng',
       email: u.email || '',
       phone: u.so_dien_thoai || u.phone || ''
     };
@@ -69,7 +69,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           if (profile) userObj = profile;
         } catch (e) {}
       }
-      onAuthSuccess(normalizeUser(userObj || { email: emailOrPhone, role: 'PATIENT' }));
+      onAuthSuccess(normalizeUser(userObj || { email: emailOrPhone, vai_tro: res?.vai_tro }));
       onClose();
     } catch (err) {
       setFormError(err.message || 'Thông tin đăng nhập không chính xác. Vui lòng kiểm tra lại email hoặc mật khẩu.');
@@ -110,7 +110,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           if (profile) userObj = profile;
         } catch (e) {}
       }
-      onAuthSuccess(normalizeUser(userObj || { phone, role: 'PATIENT' }));
+      onAuthSuccess(normalizeUser(userObj || { phone, vai_tro: res?.vai_tro }));
       onClose();
     } catch (err) {
       setFormError(err.message || 'Mã OTP không hợp lệ hoặc đã hết hạn (Mã mặc định: 123456).');
