@@ -45,7 +45,7 @@ export default function Navbar() {
     try {
       if (ApiService.getToken()) {
         const user = await ApiService.getCurrentUser();
-        setCurrentUser(normalizeUser(user));
+        setCurrentUser(user);
       }
     } catch (e) {
       console.log('No active session or backend offline');
@@ -55,6 +55,11 @@ export default function Navbar() {
   const handleLogout = () => {
     ApiService.setToken(null);
     setCurrentUser(null);
+    if (pathname.includes('/doctor') || pathname.includes('/admin') || pathname.includes('/patient')) {
+      router.push('/');
+    } else {
+      window.location.reload();
+    }
   };
 
   const handleTopSearch = (e) => {
@@ -289,7 +294,15 @@ export default function Navbar() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={(user) => {
-          setCurrentUser(user);
+          const normUser = ApiService.normalizeUser(user);
+          setCurrentUser(normUser);
+          if (normUser?.role === 'DOCTOR') {
+            router.push('/doctor/dashboard');
+          } else if (normUser?.role === 'ADMIN') {
+            router.push('/admin/dashboard');
+          } else if (normUser?.role === 'PATIENT') {
+            router.push('/patient/dashboard');
+          }
         }}
       />
     </>

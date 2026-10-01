@@ -91,9 +91,28 @@ class ApiService {
     return res;
   }
 
+  static normalizeUser(u) {
+    if (!u) return null;
+    const rawRole = String(u.vai_tro || u.role || 'benh_nhan').toLowerCase();
+    let normalizedRole = 'PATIENT';
+    if (rawRole.includes('doctor') || rawRole.includes('bac_si') || rawRole.includes('bacsi')) {
+      normalizedRole = 'DOCTOR';
+    } else if (rawRole.includes('admin') || rawRole.includes('quan_tri')) {
+      normalizedRole = 'ADMIN';
+    }
+    return {
+      ...u,
+      role: normalizedRole,
+      full_name: u.ho_ten || u.full_name || u.email || 'Người dùng',
+      email: u.email || '',
+      phone: u.so_dien_thoai || u.phone || ''
+    };
+  }
+
   static async getCurrentUser() {
     // API: GET /api/v1/auth/me
-    return await this.request('/api/v1/auth/me');
+    const rawUser = await this.request('/api/v1/auth/me');
+    return this.normalizeUser(rawUser);
   }
 
   // --- Medical Catalog APIs (Package D & E) ---

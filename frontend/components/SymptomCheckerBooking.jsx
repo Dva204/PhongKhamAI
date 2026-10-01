@@ -19,6 +19,19 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
 
+  // Enforce role-based tab access guard
+  useEffect(() => {
+    if (currentUser) {
+      if (activeTab === 'doctor' && currentUser.role !== 'DOCTOR') {
+        if (currentUser.role === 'ADMIN') setActiveTab('admin');
+        else setActiveTab('patient');
+      } else if (activeTab === 'admin' && currentUser.role !== 'ADMIN') {
+        if (currentUser.role === 'DOCTOR') setActiveTab('doctor');
+        else setActiveTab('patient');
+      }
+    }
+  }, [currentUser, activeTab]);
+
   // Ref for scrolling to AI Symptom Checker
   const checkerSectionRef = useRef(null);
 
@@ -701,6 +714,9 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
   const handleLogout = () => {
     ApiService.setToken(null);
     setCurrentUser(null);
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
   };
 
   // Confidence bar color logic per design.md (>=70% primary #1F6F5C, 40-70% accent #E8A33D, <40% neutral gray)
@@ -1757,7 +1773,19 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={(user) => setCurrentUser(user)}
+        onAuthSuccess={(user) => {
+          const normUser = ApiService.normalizeUser(user);
+          setCurrentUser(normUser);
+          if (typeof window !== 'undefined') {
+            if (normUser?.role === 'DOCTOR') {
+              window.location.href = '/doctor/dashboard';
+            } else if (normUser?.role === 'ADMIN') {
+              window.location.href = '/admin/dashboard';
+            } else if (normUser?.role === 'PATIENT') {
+              window.location.href = '/patient/dashboard';
+            }
+          }
+        }}
       />
     </div>
   );
