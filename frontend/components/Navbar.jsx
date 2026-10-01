@@ -23,11 +23,29 @@ export default function Navbar() {
     fetchCurrentUser();
   }, []);
 
+  const normalizeUser = (u) => {
+    if (!u) return null;
+    const rawRole = (u.vai_tro || u.role || 'benh_nhan').toLowerCase();
+    let normalizedRole = 'PATIENT';
+    if (rawRole.includes('doctor') || rawRole.includes('bac_si') || rawRole.includes('bacsi')) {
+      normalizedRole = 'DOCTOR';
+    } else if (rawRole.includes('admin') || rawRole.includes('quan_tri')) {
+      normalizedRole = 'ADMIN';
+    }
+    return {
+      ...u,
+      role: normalizedRole,
+      full_name: u.ho_ten || u.full_name || 'Người dùng',
+      email: u.email || '',
+      phone: u.so_dien_thoai || u.phone || ''
+    };
+  };
+
   const fetchCurrentUser = async () => {
     try {
       if (ApiService.getToken()) {
         const user = await ApiService.getCurrentUser();
-        setCurrentUser(user);
+        setCurrentUser(normalizeUser(user));
       }
     } catch (e) {
       console.log('No active session or backend offline');

@@ -36,6 +36,24 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
   };
 
+  const normalizeUser = (u) => {
+    if (!u) return null;
+    const rawRole = (u.vai_tro || u.role || 'benh_nhan').toLowerCase();
+    let normalizedRole = 'PATIENT';
+    if (rawRole.includes('doctor') || rawRole.includes('bac_si') || rawRole.includes('bacsi')) {
+      normalizedRole = 'DOCTOR';
+    } else if (rawRole.includes('admin') || rawRole.includes('quan_tri')) {
+      normalizedRole = 'ADMIN';
+    }
+    return {
+      ...u,
+      role: normalizedRole,
+      full_name: u.ho_ten || u.full_name || 'Người dùng',
+      email: u.email || '',
+      phone: u.so_dien_thoai || u.phone || ''
+    };
+  };
+
   // Handle Login Password Submission
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
@@ -44,7 +62,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
     try {
       const res = await ApiService.loginPassword(emailOrPhone, password);
-      onAuthSuccess(res.user);
+      let userObj = res?.user;
+      if (ApiService.getToken()) {
+        try {
+          const profile = await ApiService.getCurrentUser();
+          if (profile) userObj = profile;
+        } catch (e) {}
+      }
+      onAuthSuccess(normalizeUser(userObj || { email: emailOrPhone, role: 'PATIENT' }));
       onClose();
     } catch (err) {
       setFormError(err.message || 'Thông tin đăng nhập không chính xác. Vui lòng kiểm tra lại email hoặc mật khẩu.');
@@ -78,7 +103,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
     try {
       const res = await ApiService.verifyOTP(phone, otpCode);
-      onAuthSuccess(res.user);
+      let userObj = res?.user;
+      if (ApiService.getToken()) {
+        try {
+          const profile = await ApiService.getCurrentUser();
+          if (profile) userObj = profile;
+        } catch (e) {}
+      }
+      onAuthSuccess(normalizeUser(userObj || { phone, role: 'PATIENT' }));
       onClose();
     } catch (err) {
       setFormError(err.message || 'Mã OTP không hợp lệ hoặc đã hết hạn (Mã mặc định: 123456).');
