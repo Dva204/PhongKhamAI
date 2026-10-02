@@ -461,14 +461,13 @@ class AIService:
 
         # Xử lý nếu gửi danh sách triệu chứng chọn từ Checklist 132 CSV
         if payload.selected_symptoms and len(payload.selected_symptoms) > 0:
-            token_list = []
-            for col in payload.selected_symptoms:
-                token_list.append(col)
-                vn_label = CSV_SYMPTOM_MAP_VN.get(col, "").lower()
-                if vn_label in VIETNAMESE_SYMPTOM_MAP:
-                    token_list.append(VIETNAMESE_SYMPTOM_MAP[vn_label])
-            text_input_checklist = " ".join(token_list)
-            tokenized_text = word_tokenize(text_input_checklist, format="text")
+            # Lấy chuỗi tiếng Việt của các triệu chứng (VD: "Đau đầu / Nhức đầu Mệt mỏi")
+            raw_checklist_text = " ".join([CSV_SYMPTOM_MAP_VN.get(c, c) for c in payload.selected_symptoms])
+            # Cho qua hàm NLP để tự động map ra các feature (đau_đầu, headache...)
+            nlp_tokenized_text, _ = self.preprocess_vietnamese_symptoms(raw_checklist_text)
+            
+            # Gộp key gốc tiếng Anh (vd: headache) với chuỗi NLP tokenized
+            tokenized_text = " ".join(payload.selected_symptoms) + " " + nlp_tokenized_text
             detected_phrases = [CSV_SYMPTOM_MAP_VN.get(c, c) for c in payload.selected_symptoms]
         else:
             tokenized_text, detected_phrases = self.preprocess_vietnamese_symptoms(raw_text)
