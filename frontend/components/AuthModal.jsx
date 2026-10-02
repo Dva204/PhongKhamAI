@@ -10,7 +10,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [emailOrPhone, setEmailOrPhone] = useState('patient@test.com');
   const [password, setPassword] = useState('Patient@123456');
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('0988888888');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [phone, setPhone] = useState('');
   const [otpCode, setOtpCode] = useState('123456');
   const [role, setRole] = useState('PATIENT');
 
@@ -102,7 +104,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setFormError('');
 
     try {
-      const res = await ApiService.verifyOTP(phone, otpCode);
+      const res = await ApiService.verifyOTP(emailOrPhone || phone, otpCode);
       let userObj = res?.user;
       if (ApiService.getToken()) {
         try {
@@ -110,7 +112,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           if (profile) userObj = profile;
         } catch (e) {}
       }
-      onAuthSuccess(normalizeUser(userObj || { phone, vai_tro: res?.vai_tro }));
+      onAuthSuccess(normalizeUser(userObj || { phone, email: emailOrPhone, vai_tro: res?.vai_tro }));
       onClose();
     } catch (err) {
       setFormError(err.message || 'Mã OTP không hợp lệ hoặc đã hết hạn (Mã mặc định: 123456).');
@@ -128,13 +130,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     try {
       const res = await ApiService.register({
         full_name: fullName,
-        email: emailOrPhone.includes('@') ? emailOrPhone : null,
-        phone: !emailOrPhone.includes('@') ? emailOrPhone : phone,
+        email: regEmail,
+        phone: regPhone || null,
         password: password,
         role: role
       });
-      onAuthSuccess(res.user);
-      onClose();
+      if (res?.debug_otp || res?.message) {
+        setOtpSentMessage(res.message || 'Mã xác thực OTP đã được gửi đến email của bạn.');
+        setEmailOrPhone(regEmail);
+        if (res.debug_otp) setOtpCode(res.debug_otp);
+        setAuthMode('otp');
+      } else {
+        onAuthSuccess(normalizeUser(res.user || { email: regEmail, vai_tro: role }));
+        onClose();
+      }
     } catch (err) {
       setFormError(err.message || 'Đăng ký không thành công. Vui lòng thử lại.');
     } finally {
@@ -348,7 +357,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
         {/* Register Form */}
         {authMode === 'register' && (
-          <form onSubmit={handleRegister} className="space-y-3.5">
+          <form onSubmit={handleRegister} className="space-y-3">
             <div className="space-y-1">
               <label className="text-xs font-medium text-[#1C1B19]">Họ và tên</label>
               <input
@@ -356,21 +365,35 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none"
+                className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
                 placeholder="Nguyễn Văn An"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-[#1C1B19]">Email hoặc Số điện thoại</label>
-              <input
-                type="text"
-                required
-                value={emailOrPhone}
-                onChange={(e) => setEmailOrPhone(e.target.value)}
-                className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none"
-                placeholder="email@example.com hoặc 0988888888"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#1C1B19]">Địa chỉ Email</label>
+                <input
+                  type="email"
+                  required
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
+                  placeholder="email@example.com"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#1C1B19]">Số điện thoại</label>
+                <input
+                  type="tel"
+                  required
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
+                  placeholder="0912345678"
+                />
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -380,7 +403,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none"
+                className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
                 placeholder="Tối thiểu 6 ký tự"
               />
             </div>
@@ -390,7 +413,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none"
+                className="w-full bg-[#FFFFFF] border border-[#E4E1D8] rounded-md px-3 py-2 text-sm text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C]"
               >
                 <option value="PATIENT">Bệnh nhân</option>
                 <option value="DOCTOR">Bác sĩ</option>
@@ -403,7 +426,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               disabled={loading}
               className="w-full py-2.5 rounded-md bg-[#1F6F5C] hover:bg-[#175748] text-white font-medium text-sm transition"
             >
-              {loading ? 'Đang xử lý...' : 'Tạo tài khoản'}
+              {loading ? 'Đang xử lý...' : 'Tạo tài khoản & Nhận mã OTP'}
             </button>
           </form>
         )}
