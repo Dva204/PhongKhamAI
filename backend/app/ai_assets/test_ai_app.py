@@ -1,36 +1,37 @@
-import re
-import logging
-from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Any
+import streamlit as st
 import joblib
 import pandas as pd
 from underthesea import word_tokenize
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+import re
 
-from app.core.config import settings
-from app.models.user import ChuyenKhoa, BacSi, NguoiDung, TaiKhoan
-from app.models.medical import TuKhoaCapCuu
-from app.models.appointment import PhanTichAI
-from app.schemas.ai import (
-    SymptomTriageRequest, 
-    SymptomTriageResponse, 
-    SpecialtySuggestion,
-    TopDiseasePrediction,
-    CSVSymptomItem
+# Cấu hình giao diện trang web test
+st.set_page_config(
+    page_title="Hệ Thống Phân Tích & Gợi Ý Chuyên Khoa Y Tế AI", 
+    page_icon="🏥", 
+    layout="wide"
 )
-from app.schemas.appointment import DoctorBriefResponse
 
-logger = logging.getLogger("clinic_backend")
+st.title("🏥 Hệ Thống Test AI Phân Tích Triệu Chứng & Gợi Ý Chuyên Khoa")
+st.write("Giải pháp tích hợp: Xử lý ngôn ngữ tự nhiên Tiếng Việt (NLP), Chọn triệu chứng chuẩn 132 CSV và Dự đoán Chuyên khoa bằng Machine Learning.")
 
-# Path to AI model assets
-ASSETS_DIR = Path(__file__).parent.parent / "ai_assets"
-MODEL_PATH = ASSETS_DIR / "ai_symptom_model.joblib"
-VECTORIZER_PATH = ASSETS_DIR / "tfidf_vectorizer.joblib"
-TRAINING_CSV_PATH = ASSETS_DIR / "training_data.csv"
+# Nạp mô hình AI, Vectorizer và dữ liệu CSV
+@st.cache_resource
+def load_resources():
+    try:
+        model = joblib.load("ai_symptom_model.joblib")
+        vectorizer = joblib.load("tfidf_vectorizer.joblib")
+        df_csv = pd.read_csv("training_data.csv", encoding="utf-16")
+        return model, vectorizer, df_csv, None
+    except Exception as e:
+        return None, None, None, str(e)
 
+model, vectorizer, df_csv, error_msg = load_resources()
 
-# 1. Map 132 symptoms from CSV to Vietnamese medical terms
+if error_msg:
+    st.error(f"❌ Không thể nạp tài nguyên. Hãy đảm bảo file `.joblib` và `training_data.csv` cùng thư mục! Lỗi chi tiết: {error_msg}")
+    st.stop()
+
+# 1. Ánh xạ 132 triệu chứng từ file training_data.csv sang Tiếng Việt chuẩn y khoa
 CSV_SYMPTOM_MAP_VN = {
     'itching': 'Ngứa ngáy',
     'skin_rash': 'Nổi mẩn đỏ / Phát ban',
@@ -166,7 +167,7 @@ CSV_SYMPTOM_MAP_VN = {
     'yellow_crust_ooze': 'Vảy đóng rỉ vàng'
 }
 
-# 2. Map 41 diseases to clinic specialties & Vietnamese names
+# 2. Ánh xạ 41 loại bệnh sang Chuyên khoa phòng khám & Tiếng Việt
 DISEASE_TRANSLATION_MAP = {
     "(vertigo) Paroymsal  Positional Vertigo": ("Chóng mặt tư thế lành tính", "Tai - Mũi - Họng"),
     "AIDS": ("Hội chứng suy giảm miễn dịch (AIDS)", "Nội tổng quát"),
@@ -209,7 +210,7 @@ DISEASE_TRANSLATION_MAP = {
     "Psoriasis": ("Bệnh vẩy nến", "Da liễu"),
     "Tuberculosis": ("Bệnh lao phổi", "Hô hấp"),
     "Typhoid": ("Bệnh thương hàn", "Nội tổng quát"),
-    "Urinary tract infection": ("Nhiễm trùng đường tiết niệu", "Thần kinh"),
+    "Urinary tract infection": ("Nhiễm trùng đường tiết niệu", "Thận - Tiết niệu"),
     "Varicose veins": ("Suy giãn tĩnh mạch chân", "Tim mạch")
 }
 
@@ -274,7 +275,7 @@ VIETNAMESE_SYMPTOM_MAP = {
     'bong tróc da': 'skin_peeling', 'lột da': 'skin_peeling',
     'vảy bạc': 'silver_like_dusting', 'móng tay lỗ': 'small_dents_in_nails', 'viêm móng': 'inflammatory_nails',
     'mụn nước': 'blister', 'lở quanh mũi': 'red_sore_around_nose', 'vảy đóng rỉ': 'yellow_crust_ooze',
-    'đốm da đổi màu': 'dischromic _patches',
+    'đốm da đổi màu': 'dischromic _patches', 'vết thâm da': '_patches',
 
     # 5. Cơ xương khớp
     'đau khớp': 'đau_khớp joint_pain', 'nhức khớp': 'đau_khớp joint_pain', 'sưng khớp': 'swelling_joints joint_pain',
@@ -315,306 +316,193 @@ VIETNAMESE_SYMPTOM_MAP = {
     'yếu cơ': 'yếu_cơ muscle_weakness', 'teo cơ': 'teo_cơ muscle_wasting'
 }
 
-# Compile Regex Pattern for matching symptoms
 sorted_phrases = sorted(VIETNAMESE_SYMPTOM_MAP.keys(), key=len, reverse=True)
 MEDICAL_PATTERN = re.compile(r'(' + '|'.join(re.escape(k) for k in sorted_phrases) + r')')
 
+def preprocess_vietnamese_symptoms(raw_text):
+    text_clean = raw_text.lower().strip()
+    text_clean = re.sub(r'[^\w\s]', ' ', text_clean)
+    matched_phrases = []
+    def replace_func(match):
+        phrase = match.group(1)
+        matched_phrases.append(phrase)
+        return f" {VIETNAMESE_SYMPTOM_MAP[phrase]} "
+        
+    text_clean = MEDICAL_PATTERN.sub(replace_func, text_clean)
+    tokenized_text = word_tokenize(text_clean, format="text")
+    return tokenized_text, matched_phrases
 
-class AIService:
-    """Tầng Control xử lý Trí tuệ nhân tạo phân tích triệu chứng từ mô hình Machine Learning & Red Flags (Package C)"""
+def run_prediction_pipeline(tokenized_text):
+    X_input = vectorizer.transform([tokenized_text])
+    feature_match_count = X_input.nnz
+    
+    predicted_disease_raw = model.predict(X_input)[0]
+    probabilities = model.predict_proba(X_input)[0]
+    confidence_score = float(max(probabilities) * 100)
+    predicted_disease_clean = predicted_disease_raw.strip()
+    
+    disease_vn, recommended_specialty = DISEASE_TRANSLATION_MAP.get(
+        predicted_disease_raw, 
+        DISEASE_TRANSLATION_MAP.get(predicted_disease_clean, (predicted_disease_clean, "Nội tổng quát"))
+    )
+    
+    note_text = ""
+    if feature_match_count == 0 or confidence_score < 8.0:
+        recommended_specialty = "Nội tổng quát"
+        note_text = "Mô hình chưa nhận diện đủ triệu chứng đặc hiệu. Hệ thống khuyến nghị khám Nội tổng quát để bác sĩ trực tiếp kiểm tra."
+        
+    return {
+        "disease_vn": disease_vn,
+        "disease_en": predicted_disease_clean,
+        "specialty": recommended_specialty,
+        "confidence": confidence_score,
+        "match_count": feature_match_count,
+        "probabilities": probabilities,
+        "note": note_text
+    }
 
-    def __init__(self):
-        self.model = None
-        self.vectorizer = None
-        self.df_csv = None
-        self.load_resources()
+# Tạo các Tab thử nghiệm
+tab1, tab2, tab3 = st.tabs([
+    "💬 Chế Độ 1: Nhập Câu Tự Nhiên (NLP)", 
+    "📋 Chế Độ 2: Tích Chọn 132 Triệu Chứng Chuẩn CSV", 
+    "📊 Chế Độ 3: Thống Kê & Phân Tích Dataset CSV"
+])
 
-    def load_resources(self):
-        """Nạp mô hình AI joblib, TF-IDF Vectorizer và dữ liệu CSV huấn luyện"""
-        try:
-            if MODEL_PATH.exists() and VECTORIZER_PATH.exists():
-                self.model = joblib.load(MODEL_PATH)
-                self.vectorizer = joblib.load(VECTORIZER_PATH)
-                logger.info("✅ [AI SERVICE] Nạp thành công mô hình AI & TFIDF Vectorizer từ TestAI!")
-            else:
-                logger.warning(f"⚠️ [AI SERVICE] Không tìm thấy file mô hình tại {ASSETS_DIR}")
+# --- TAB 1: NLP NATURAL LANGUAGE ---
+with tab1:
+    st.subheader("💬 Mô tả triệu chứng theo cách của bạn")
+    st.caption("Ví dụ: 'Tôi bị đau đầu, chóng mặt, buồn nôn', 'Bị đau bụng tiêu chảy', 'toi bi sot cao ret run'...")
+    
+    user_input = st.text_area(
+        "Nhập cảm giác sức khỏe:", 
+        placeholder="Nhập mô tả tại đây...",
+        height=120,
+        key="nlp_input"
+    )
+    
+    if st.button("Phân tích bằng NLP & AI", type="primary", key="btn_nlp"):
+        if not user_input.strip():
+            st.warning("⚠️ Vui lòng nhập mô tả trước khi bấm phân tích!")
+        else:
+            raw_text = user_input.lower().strip()
             
-            if TRAINING_CSV_PATH.exists():
-                self.df_csv = pd.read_csv(TRAINING_CSV_PATH, encoding="utf-16")
-                logger.info(f"✅ [AI SERVICE] Nạp thành công Dataset CSV: {self.df_csv.shape[0]} dòng")
-        except Exception as e:
-            logger.error(f"❌ [AI SERVICE] Lỗi khi nạp mô hình AI: {str(e)}")
+            # 1. Kiểm tra Red Flags
+            is_emergency = False
+            detected_flag = ""
+            for kw in RED_FLAGS_KEYWORDS:
+                if kw in raw_text:
+                    is_emergency = True
+                    detected_flag = kw
+                    break
+                    
+            if is_emergency:
+                st.error(f"🚨 **CẢNH BÁO KHẨN CẤP (RED FLAGS)**: Phát hiện dấu hiệu nguy hiểm (`{detected_flag}`). Ngắt luồng đặt lịch thường, vui lòng gọi 115 ngay!")
+            else:
+                tokenized_text, detected_phrases = preprocess_vietnamese_symptoms(raw_text)
+                res = run_prediction_pipeline(tokenized_text)
+                
+                st.success("✅ Phân tích NLP thành công!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric(label="📌 Chuyên khoa đề xuất", value=res["specialty"])
+                with col2:
+                    st.metric(label="📊 Độ tin cậy (Confidence)", value=f"{res['confidence']:.2f}%")
+                    
+                st.write(f"🔍 **Bệnh dự đoán sơ bộ:** `{res['disease_vn']}` *({res['disease_en']})*")
+                
+                if detected_phrases:
+                    st.info(f"💡 **Các triệu chứng trích xuất được ({len(detected_phrases)}):** " + ", ".join([f"`{p}`" for p in set(detected_phrases)]))
+                else:
+                    st.warning("⚠️ Không trích xuất được từ khóa triệu chứng rõ ràng trong câu.")
+                    
+                if res["note"]:
+                    st.caption(f"💡 *Ghi chú:* {res['note']}")
+                    
+                with st.expander("📈 Xem Chi Tiết Top 3 Dự Đoán Bệnh Khả Thi Nhất"):
+                    top3_indices = res["probabilities"].argsort()[-3:][::-1]
+                    for idx in top3_indices:
+                        d_raw = model.classes_[idx]
+                        d_clean = d_raw.strip()
+                        d_vn, d_spec = DISEASE_TRANSLATION_MAP.get(d_raw, DISEASE_TRANSLATION_MAP.get(d_clean, (d_clean, "Nội tổng quát")))
+                        prob_val = res["probabilities"][idx] * 100
+                        st.write(f"• **{d_vn}** *({d_clean})* — Chuyên khoa: **{d_spec}**")
+                        st.progress(min(float(prob_val / 100.0), 1.0), text=f"{prob_val:.2f}%")
 
-    def get_csv_symptoms_list(self) -> List[CSVSymptomItem]:
-        """Trả về danh sách 132 triệu chứng chuẩn CSV cho Frontend Checklist tab"""
-        items = []
-        for code, name_vn in CSV_SYMPTOM_MAP_VN.items():
-            items.append(CSVSymptomItem(code=code, name_vn=name_vn))
-        return items
-
-    def preprocess_vietnamese_symptoms(self, raw_text: str) -> Tuple[str, List[str]]:
-        """Tiền xử lý NLP câu Tiếng Việt tự nhiên và trích xuất từ khóa triệu chứng"""
-        text_clean = raw_text.lower().strip()
-        text_clean = re.sub(r'[^\w\s]', ' ', text_clean)
-        matched_phrases = []
-
-        def replace_func(match):
-            phrase = match.group(1)
-            matched_phrases.append(phrase)
-            return f" {VIETNAMESE_SYMPTOM_MAP[phrase]} "
-
-        text_clean = MEDICAL_PATTERN.sub(replace_func, text_clean)
-        tokenized_text = word_tokenize(text_clean, format="text")
-        return tokenized_text, matched_phrases
-
-    def run_prediction_pipeline(self, tokenized_text: str) -> Dict[str, Any]:
-        """Chạy dự đoán qua TF-IDF Vectorizer và Scikit-Learn Machine Learning Model"""
-        if not self.model or not self.vectorizer:
-            raise RuntimeError("Mô hình AI chưa được nạp sẵn sàng!")
-
-        X_input = self.vectorizer.transform([tokenized_text])
-        feature_match_count = X_input.nnz
-
-        predicted_disease_raw = self.model.predict(X_input)[0]
-        probabilities = self.model.predict_proba(X_input)[0]
-        confidence_score = float(max(probabilities) * 100)
-        predicted_disease_clean = predicted_disease_raw.strip()
-
-        disease_vn, recommended_specialty = DISEASE_TRANSLATION_MAP.get(
-            predicted_disease_raw,
-            DISEASE_TRANSLATION_MAP.get(predicted_disease_clean, (predicted_disease_clean, "Nội tổng quát"))
-        )
-
-        note_text = ""
-        default_assigned = False
-        if feature_match_count == 0 or confidence_score < 8.0:
-            recommended_specialty = "Nội tổng quát"
-            default_assigned = True
-            note_text = "Mô hình chưa nhận diện đủ triệu chứng đặc hiệu. Hệ thống khuyến nghị khám Nội tổng quát để bác sĩ trực tiếp kiểm tra."
-
-        # Trích xuất Top 3 chẩn đoán khả thi nhất
-        top3_indices = probabilities.argsort()[-3:][::-1]
-        top_predictions = []
-        for idx in top3_indices:
-            d_raw = self.model.classes_[idx]
-            d_clean = d_raw.strip()
-            d_vn, d_spec = DISEASE_TRANSLATION_MAP.get(d_raw, DISEASE_TRANSLATION_MAP.get(d_clean, (d_clean, "Nội tổng quát")))
-            prob_val = float(probabilities[idx] * 100)
-            top_predictions.append({
-                "disease_vn": d_vn,
-                "disease_en": d_clean,
-                "specialty": d_spec,
-                "probability_pct": round(prob_val, 2)
-            })
-
-        return {
-            "disease_vn": disease_vn,
-            "disease_en": predicted_disease_clean,
-            "specialty": recommended_specialty,
-            "confidence": round(confidence_score / 100.0, 4),  # 0.0 - 1.0 scale
-            "confidence_pct": round(confidence_score, 2),
-            "match_count": feature_match_count,
-            "top_predictions": top_predictions,
-            "default_assigned": default_assigned,
-            "note": note_text
-        }
-
-    async def scan_red_flags(self, raw_text: str, db: AsyncSession) -> Tuple[bool, str]:
-        """Quét từ điển dấu hiệu cấp cứu nguy hiểm tính mạng (Red Flags Rules)"""
-        text_lower = raw_text.lower().strip()
-
-        # 1. Kiểm tra danh sách Red Flags keywords
-        for kw in RED_FLAGS_KEYWORDS:
-            if kw in text_lower:
-                logger.critical(f"🚨 [RED FLAG DETECTED] Bắt trúng từ khóa cấp cứu: '{kw}'")
-                return True, f"CẢNH BÁO NGUY CƠ NGUY HIỂM TÍNH MẠNG! Phát hiện dấu hiệu cấp cứu ({kw}). Đề nghị liên hệ 115 hoặc đến ngay phòng Cấp cứu!"
-
-        # 2. Kiểm tra bảng CSDL TuKhoaCapCuu nếu có
-        if db:
-            try:
-                stmt = select(TuKhoaCapCuu).where(TuKhoaCapCuu.is_active.is_(True))
-                red_flag_rules = (await db.execute(stmt)).scalars().all()
-                for rule in red_flag_rules:
-                    if rule.tu_khoa.lower() in text_lower:
-                        logger.critical(f"🚨 [RED FLAG DB DETECTED] Bắt trúng luật CSDL: '{rule.tu_khoa}'")
-                        return True, rule.huong_dan_xu_tri
-            except Exception as e:
-                logger.warning(f"Lỗi khi truy vấn TuKhoaCapCuu từ DB: {e}")
-
-        return False, ""
-
-    async def analyze_symptoms(
-        self, 
-        payload: SymptomTriageRequest, 
-        user: TaiKhoan = None, 
-        db: AsyncSession = None
-    ) -> SymptomTriageResponse:
-        """Quy trình phân tích triệu chứng từ NLP / Checklist CSV, dự đoán ML và gợi ý chuyên khoa + bác sĩ"""
-        raw_text = payload.trieu_chung or ""
-
-        # Xử lý nếu gửi danh sách triệu chứng chọn từ Checklist 132 CSV
-        if payload.selected_symptoms and len(payload.selected_symptoms) > 0:
+# --- TAB 2: CHECKLIST 132 SYMPTOMS ---
+with tab2:
+    st.subheader("📋 Chọn trực tiếp từ danh sách 132 Triệu chứng chuẩn (Kaggle Dataset)")
+    st.caption("Phương pháp này mang lại độ chính xác 100% khớp theo đúng cơ chế huấn luyện của tập dữ liệu CSV gốc.")
+    
+    csv_symptom_cols = [c for c in df_csv.columns if c not in ['prognosis', 'Unnamed: 133']]
+    
+    # Mapping display names
+    options_dict = {f"{CSV_SYMPTOM_MAP_VN.get(col, col)} ({col})": col for col in csv_symptom_cols}
+    
+    selected_options = st.multiselect(
+        "Chọn các triệu chứng bạn đang gặp phải:",
+        options=list(options_dict.keys()),
+        placeholder="Gõ để tìm kiếm triệu chứng (ví dụ: Đau đầu, Sốt cao, Buồn nôn...)"
+    )
+    
+    if st.button("Phân tích từ triệu chứng đã chọn", type="primary", key="btn_checklist"):
+        if not selected_options:
+            st.warning("⚠️ Vui lòng chọn ít nhất 1 triệu chứng từ danh sách!")
+        else:
+            selected_cols = [options_dict[opt] for opt in selected_options]
+            
+            # Map selected columns to tokens (both EN column name and mapped VN terms)
             token_list = []
-            for col in payload.selected_symptoms:
+            for col in selected_cols:
                 token_list.append(col)
                 vn_label = CSV_SYMPTOM_MAP_VN.get(col, "").lower()
                 if vn_label in VIETNAMESE_SYMPTOM_MAP:
                     token_list.append(VIETNAMESE_SYMPTOM_MAP[vn_label])
+                    
             text_input_checklist = " ".join(token_list)
-            tokenized_text = word_tokenize(text_input_checklist, format="text")
-            detected_phrases = [CSV_SYMPTOM_MAP_VN.get(c, c) for c in payload.selected_symptoms]
-        else:
-            tokenized_text, detected_phrases = self.preprocess_vietnamese_symptoms(raw_text)
+            tok_checklist = word_tokenize(text_input_checklist, format="text")
+            
+            res = run_prediction_pipeline(tok_checklist)
+            
+            st.success("✅ Phân tích từ Checklist thành công!")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(label="📌 Chuyên khoa đề xuất", value=res["specialty"])
+            with col2:
+                st.metric(label="📊 Độ tin cậy (Confidence)", value=f"{res['confidence']:.2f}%")
+                
+            st.write(f"🔍 **Bệnh dự đoán sơ bộ:** `{res['disease_vn']}` *({res['disease_en']})*")
+            st.info(f"💡 **Số triệu chứng khớp trong Vectorizer:** `{res['match_count']}` / {len(selected_cols)}")
+            
+            with st.expander("📈 Xem Chi Tiết Top 3 Dự Đoán Bệnh Khả Thi Nhất"):
+                top3_indices = res["probabilities"].argsort()[-3:][::-1]
+                for idx in top3_indices:
+                    d_raw = model.classes_[idx]
+                    d_clean = d_raw.strip()
+                    d_vn, d_spec = DISEASE_TRANSLATION_MAP.get(d_raw, DISEASE_TRANSLATION_MAP.get(d_clean, (d_clean, "Nội tổng quát")))
+                    prob_val = res["probabilities"][idx] * 100
+                    st.write(f"• **{d_vn}** *({d_clean})* — Chuyên khoa: **{d_spec}**")
+                    st.progress(min(float(prob_val / 100.0), 1.0), text=f"{prob_val:.2f}%")
 
-        # 1. Quét dấu hiệu cấp cứu khẩn cấp Red Flags
-        is_emergency, alert_msg = await self.scan_red_flags(raw_text, db)
-        if is_emergency:
-            if db:
-                try:
-                    log_ai = PhanTichAI(
-                        trieu_chung_nhap=raw_text,
-                        co_dau_hieu_cap_cuu=True,
-                        do_tin_cay=1.0
-                    )
-                    db.add(log_ai)
-                    await db.commit()
-                except Exception:
-                    pass
-
-            return SymptomTriageResponse(
-                has_emergency=True,
-                emergency_alert=alert_msg,
-                suggested_specialties=[],
-                detected_symptoms=list(set(detected_phrases))
-            )
-
-        # 2. Chạy mô hình ML dự đoán
-        pred = self.run_prediction_pipeline(tokenized_text)
-
-        target_specialty_name = pred["specialty"]
-        confidence = pred["confidence"]
-        reason = (
-            f"Dựa trên mô hình AI phân tích triệu chứng: dự đoán khả năng gặp phải {pred['disease_vn']} "
-            f"({pred['confidence_pct']}% tin cậy) từ {pred['match_count']} đặc trưng trùng khớp."
-        )
-
-        # Build gợi ý chuyên khoa & danh sách bác sĩ từ CSDL
-        suggestions: List[SpecialtySuggestion] = []
-        primary_suggestion = await self._build_specialty_suggestion(
-            target_specialty_name, confidence, reason, db
-        )
-        suggestions.append(primary_suggestion)
-
-        # Thêm chuyên khoa phụ từ top 2 dự đoán nếu có xác suất cao (> 15%)
-        if len(pred["top_predictions"]) > 1:
-            second_pred = pred["top_predictions"][1]
-            if second_pred["probability_pct"] >= 15.0 and second_pred["specialty"] != target_specialty_name:
-                second_reason = f"Dự đoán phụ khả thi: {second_pred['disease_vn']} ({second_pred['probability_pct']}%)."
-                sec_suggestion = await self._build_specialty_suggestion(
-                    second_pred["specialty"], 
-                    round(second_pred["probability_pct"] / 100.0, 4), 
-                    second_reason, 
-                    db
-                )
-                suggestions.append(sec_suggestion)
-
-        # 3. Ghi vết nhật ký suy luận vào CSDL
-        if db:
-            try:
-                top_suggestion = suggestions[0]
-                log_ai = PhanTichAI(
-                    trieu_chung_nhap=raw_text,
-                    chuyen_khoa_goi_y_id=top_suggestion.chuyen_khoa_id,
-                    do_tin_cay=top_suggestion.do_tin_cay,
-                    co_dau_hieu_cap_cuu=False
-                )
-                db.add(log_ai)
-                await db.commit()
-            except Exception as e:
-                logger.warning(f"Không thể ghi vết nhật ký AI: {e}")
-
-        # Top 3 predictions structured objects
-        top_prediction_objs = [
-            TopDiseasePrediction(**p) for p in pred["top_predictions"]
-        ]
-
-        return SymptomTriageResponse(
-            has_emergency=False,
-            emergency_alert=None,
-            suggested_specialties=suggestions,
-            default_assigned=pred["default_assigned"],
-            predicted_disease_vn=pred["disease_vn"],
-            predicted_disease_en=pred["disease_en"],
-            detected_symptoms=list(set(detected_phrases)),
-            top_predictions=top_prediction_objs,
-            match_count=pred["match_count"],
-            note=pred["note"]
-        )
-
-    async def _build_specialty_suggestion(
-        self, 
-        specialty_name: str, 
-        confidence: float, 
-        reason: str, 
-        db: AsyncSession
-    ) -> SpecialtySuggestion:
-        """Helper tìm kiếm chuyên khoa và danh sách bác sĩ tương ứng trong CSDL"""
-        doctor_briefs = []
-        ck_id = 0
-        display_name = specialty_name
-
-        if db:
-            try:
-                # Tìm chuyên khoa theo tên tiếng Việt
-                stmt_ck = select(ChuyenKhoa).where(ChuyenKhoa.ten_chuyen_khoa.ilike(f"%{specialty_name}%"))
-                ck = (await db.execute(stmt_ck)).scalar_one_or_none()
-
-                if not ck:
-                    # Map tên ngắn nếu tên không khớp tuyệt đối
-                    keyword_map = {
-                        "Nội tổng quát": "Nội",
-                        "Tim mạch": "Tim",
-                        "Da liễu": "Da",
-                        "Tai - Mũi - Họng": "Tai",
-                        "Thần kinh": "Thần",
-                        "Cơ xương khớp": "xương",
-                        "Hô hấp": "Hô",
-                        "Tiêu hóa": "Tiêu",
-                        "Nội tiết": "Nội"
-                    }
-                    search_kw = keyword_map.get(specialty_name, specialty_name)
-                    stmt_ck2 = select(ChuyenKhoa).where(ChuyenKhoa.ten_chuyen_khoa.ilike(f"%{search_kw}%"))
-                    ck = (await db.execute(stmt_ck2)).scalars().first()
-
-                if ck:
-                    ck_id = ck.id
-                    display_name = ck.ten_chuyen_khoa
-                    stmt_bs = (
-                        select(BacSi, NguoiDung)
-                        .join(NguoiDung, BacSi.nguoi_dung_id == NguoiDung.id)
-                        .where(BacSi.chuyen_khoa_id == ck.id)
-                        .limit(3)
-                    )
-                    bs_list = (await db.execute(stmt_bs)).all()
-                    for bac_si, nguoi_dung in bs_list:
-                        doctor_briefs.append(
-                            DoctorBriefResponse(
-                                id=bac_si.id,
-                                ho_ten=nguoi_dung.ho_ten,
-                                chuyen_khoa=display_name,
-                                hoc_vi=bac_si.hoc_vi
-                            )
-                        )
-            except Exception as e:
-                logger.warning(f"Lỗi khi tra cứu chuyên khoa/bác sĩ từ DB: {e}")
-
-        return SpecialtySuggestion(
-            chuyen_khoa_id=ck_id,
-            ten_chuyen_khoa=display_name,
-            do_tin_cay=confidence,
-            ly_do_de_xuat=reason,
-            danh_sach_bac_si=doctor_briefs
-        )
-
-
-ai_service = AIService()
+# --- TAB 3: DATASET STATS ---
+with tab3:
+    st.subheader("📊 Thống kê tập dữ liệu huấn luyện `training_data.csv`")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.metric("Tổng số bản ghi (Rows)", f"{df_csv.shape[0]:,}")
+    with col_b:
+        st.metric("Tổng số triệu chứng (Features)", f"{len(csv_symptom_cols)}")
+    with col_c:
+        st.metric("Tổng số loại bệnh (Classes)", f"{df_csv['prognosis'].nunique()}")
+        
+    st.markdown("---")
+    st.write("📋 **Danh sách 41 loại bệnh có trong mô hình & Chuyên khoa tương ứng:**")
+    
+    unique_diseases = df_csv['prognosis'].unique()
+    table_data = []
+    for d in sorted(unique_diseases):
+        d_clean = d.strip()
+        d_vn, d_spec = DISEASE_TRANSLATION_MAP.get(d, DISEASE_TRANSLATION_MAP.get(d_clean, (d_clean, "Nội tổng quát")))
+        count = (df_csv['prognosis'] == d).sum()
+        table_data.append({"Tên bệnh gốc (Kaggle)": d_clean, "Tên tiếng Việt": d_vn, "Chuyên khoa": d_spec, "Số mẫu": count})
+        
+    st.dataframe(pd.DataFrame(table_data), use_container_width=True)

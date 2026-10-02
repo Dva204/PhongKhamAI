@@ -133,14 +133,20 @@ class ApiService {
   }
 
   // --- AI Symptom Checker APIs (Package C) ---
+  static async getCSVSymptoms() {
+    // API: GET /api/v1/ai/csv-symptoms
+    return await this.request('/api/v1/ai/csv-symptoms');
+  }
+
   static async analyzeSymptoms(symptomData) {
     // API: POST /api/v1/ai/analyze-symptoms
     return await this.request('/api/v1/ai/analyze-symptoms', {
       method: 'POST',
       body: JSON.stringify({
-        trieu_chung: symptomData.trieu_chung || symptomData.free_text || symptomData.symptom_tags?.join(', '),
+        trieu_chung: symptomData.trieu_chung || symptomData.free_text || symptomData.symptom_tags?.join(', ') || 'Đau đầu, mệt mỏi',
         tuoi: symptomData.tuoi || symptomData.patient_age || 30,
-        gioi_tinh: symptomData.gioi_tinh || symptomData.patient_gender || 'Nam'
+        gioi_tinh: symptomData.gioi_tinh || symptomData.patient_gender || 'Nam',
+        selected_symptoms: symptomData.selected_symptoms || null
       }),
     });
   }

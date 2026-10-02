@@ -43,6 +43,22 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
   // --- Symptom Checker State ---
   const [freeText, setFreeText] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
+  const [csvSymptoms, setCsvSymptoms] = useState([]);
+  const [selectedCSVSymptoms, setSelectedCSVSymptoms] = useState([]);
+  const [csvFilterSearch, setCsvFilterSearch] = useState('');
+
+  useEffect(() => {
+    fetchCSVSymptoms();
+  }, []);
+
+  const fetchCSVSymptoms = async () => {
+    try {
+      const list = await ApiService.getCSVSymptoms();
+      if (Array.isArray(list) && list.length > 0) {
+        setCsvSymptoms(list);
+      }
+    } catch (e) {}
+  };
   const [analyzing, setAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [recommendedDoctors, setRecommendedDoctors] = useState([]);
@@ -445,9 +461,10 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
   };
 
   // Trigger AI Symptom Analysis (Item 2: Returns 1-2 recommended departments)
+  // Trigger AI Symptom Analysis (Item 2: Returns ML model diagnosis & 1-2 recommended departments)
   const handleAnalyzeSymptoms = async () => {
-    if (!freeText.trim() && selectedTags.length === 0) {
-      alert('Vui lòng nhập mô tả triệu chứng hoặc chọn ít nhất 1 triệu chứng có sẵn.');
+    if (!freeText.trim() && selectedTags.length === 0 && selectedCSVSymptoms.length === 0) {
+      alert('Vui lòng nhập mô tả triệu chứng, chọn tag có sẵn hoặc chọn từ checklist 132 triệu chứng.');
       return;
     }
 
@@ -458,54 +475,93 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
 
     try {
       const data = await ApiService.analyzeSymptoms({
-        free_text: freeText,
+        trieu_chung: `${freeText} ${selectedTags.join(', ')}`.trim(),
         symptom_tags: selectedTags,
+        selected_symptoms: selectedCSVSymptoms.length > 0 ? selectedCSVSymptoms : null,
         patient_gender: currentUser?.profile?.gender || 'Nam',
         patient_age: 30
       });
 
-      setAiResult(data.analysis);
-      if (data.recommended_doctors && data.recommended_doctors.length > 0) {
-        setRecommendedDoctors(data.recommended_doctors);
+      const recDepts = (data.suggested_specialties || []).map((s, idx) => ({
+        id: s.chuyen_khoa_id || idx + 1,
+        name: s.ten_chuyen_khoa,
+        confidence_score: s.do_tin_cay,
+        is_primary: idx === 0,
+        medical_explanation: s.ly_do_de_xuat
+      }));
+
+      setAiResult({
+        is_emergency: data.has_emergency,
+        emergency_warning: data.emergency_alert,
+        recommended_departments: recDepts.length > 0 ? recDepts : [
+          { id: 1, name: 'Nội tổng quát', confidence_score: 0.50, is_primary: true, medical_explanation: 'Khuyến nghị khám Nội tổng quát để bác sĩ trực tiếp kiểm tra.' }
+        ],
+        confidence_score: data.suggested_specialties?.[0]?.do_tin_cay || 0.50,
+        predicted_disease_vn: data.predicted_disease_vn,
+        predicted_disease_en: data.predicted_disease_en,
+        detected_symptoms: data.detected_symptoms || [],
+        top_predictions: data.top_predictions || [],
+        match_count: data.match_count || 0,
+        note: data.note,
+        suggested_action: data.has_emergency
+          ? '🚨 CẢNH BÁO CẤP CỨU: Phát hiện dấu hiệu đe dọa tính mạng. Vui lòng gọi 115 hoặc di chuyển ngay đến cơ sở y tế gần nhất!'
+          : `Hệ thống AI đề xuất khám tại Khoa ${data.suggested_specialties?.[0]?.ten_chuyen_khoa || 'Nội tổng quát'}.`,
+        suggested_questions: [
+          'Triệu chứng này bắt đầu xuất hiện từ khi nào?',
+          'Cơn đau hoặc khó chịu có tăng lên khi vận động không?',
+          'Bạn có kèm theo sốt, chóng mặt hay vã mồ hôi không?'
+        ]
+      });
+
+      const docsFromAI = [];
+      (data.suggested_specialties || []).forEach(s => {
+        (s.danh_sach_bac_si || []).forEach(d => {
+          docsFromAI.push({
+            id: d.id,
+            full_name: d.ho_ten,
+            title: d.hoc_vi || 'BS.CKI',
+            department_name: d.chuyen_khoa,
+            consultation_fee: 350000,
+            rating_avg: 4.8,
+            hospital_address: 'Bệnh viện Đa khoa Quốc tế'
+          });
+        });
+      });
+
+      if (docsFromAI.length > 0) {
+        setRecommendedDoctors(docsFromAI);
       } else {
-        setRecommendedDoctors(defaultMockDoctors);
+        const primName = data.suggested_specialties?.[0]?.ten_chuyen_khoa;
+        const matchedDocs = defaultMockDoctors.filter(d => d.department_name === primName);
+        setRecommendedDoctors(matchedDocs.length > 0 ? matchedDocs : defaultMockDoctors);
       }
     } catch (err) {
-      // Fallback local simulation with 1-2 RECOMMENDED DEPARTMENTS (per Item 2 in specification table)
+      // Fallback simulation if network or API error occurs
       const lower = `${freeText} ${selectedTags.join(' ')}`.toLowerCase();
       let primaryDept = { id: 1, name: 'Nội tổng quát', confidence_score: 0.85, is_primary: true, medical_explanation: 'Dựa trên mô tả triệu chứng, hệ thống đề xuất bạn thăm khám tại chuyên khoa Nội tổng quát để chẩn đoán tổng thể.' };
       let secondaryDept = { id: 10, name: 'Tiêu hóa & Gan mật', confidence_score: 0.60, is_primary: false, medical_explanation: 'Đồng thời nên phối hợp thăm khám chuyên khoa Tiêu hóa để tầm soát nguyên nhân đau dạ dày hoặc đường ruột.' };
       let isEmerg = false;
 
       if (lower.includes('ngực') || lower.includes('tim') || lower.includes('ép ngực')) {
-        primaryDept = { id: 2, name: 'Tim mạch', confidence_score: 0.88, is_primary: true, medical_explanation: 'Các triệu chứng đau ép ngực và thay đổi nhịp tim cần được thăm khám tại chuyên khoa Tim mạch để kiểm tra điện tâm đồ và chức năng mạch vành.' };
-        secondaryDept = { id: 1, name: 'Nội tổng quát', confidence_score: 0.62, is_primary: false, medical_explanation: 'Khám phối hợp Nội tổng quát nhằm kiểm tra các chỉ số huyết áp, mỡ máu và tầm soát rối loạn chuyển hóa.' };
+        primaryDept = { id: 2, name: 'Tim mạch', confidence_score: 0.88, is_primary: true, medical_explanation: 'Các triệu chứng đau ép ngực và thay đổi nhịp tim cần được thăm khám tại chuyên khoa Tim mạch.' };
+        secondaryDept = { id: 1, name: 'Nội tổng quát', confidence_score: 0.62, is_primary: false, medical_explanation: 'Khám phối hợp Nội tổng quát để kiểm tra sinh hiệu và mỡ máu.' };
         if (lower.includes('dữ dội') || lower.includes('khó thở cấp')) isEmerg = true;
-      } else if (lower.includes('nổi mẩn') || lower.includes('ngứa') || lower.includes('da')) {
-        primaryDept = { id: 3, name: 'Da liễu', confidence_score: 0.86, is_primary: true, medical_explanation: 'Biểu hiện nổi mẩn đỏ hoặc ngứa ngoài da phù hợp với thăm khám và trị liệu tại chuyên khoa Da liễu.' };
-        secondaryDept = { id: 1, name: 'Nội tổng quát', confidence_score: 0.58, is_primary: false, medical_explanation: 'Tầm soát thêm Nội tổng quát để loại trừ các phản ứng dị ứng do thực phẩm hoặc nội tiết.' };
-      } else if (lower.includes('họng') || lower.includes('sổ mũi') || lower.includes('ù tai')) {
-        primaryDept = { id: 5, name: 'Tai Mũi Họng', confidence_score: 0.87, is_primary: true, medical_explanation: 'Các triệu chứng đường hô hấp trên phù hợp với phạm vi khám chữa bệnh của chuyên khoa Tai Mũi Họng.' };
-        secondaryDept = { id: 12, name: 'Hô hấp & Phổi', confidence_score: 0.64, is_primary: false, medical_explanation: 'Khám phối hợp Chuyên khoa Hô hấp nếu có dấu hiệu ho rải rác hoặc nghe tiếng rít phế quản.' };
       }
-
-      const recDepts = [primaryDept, secondaryDept];
 
       setAiResult({
         is_emergency: isEmerg,
-        emergency_warning: isEmerg ? 'CẢNH BÁO CẤP CỨU Y TẾ: Triệu chứng đau ngực hoặc khó thở dữ dội có dấu hiệu đe dọa tính mạng. Vui lòng gọi Cấp cứu 115 hoặc di chuyển ngay đến cơ sở y tế gần nhất!' : null,
-        recommended_departments: recDepts,
+        emergency_warning: isEmerg ? 'CẢNH BÁO CẤP CỨU Y TẾ: Triệu chứng đau ngực hoặc khó thở dữ dội có dấu hiệu đe dọa tính mạng. Vui lòng gọi Cấp cứu 115 ngay!' : null,
+        recommended_departments: [primaryDept, secondaryDept],
         confidence_score: primaryDept.confidence_score,
-        medical_explanation: primaryDept.medical_explanation,
-        suggested_action: `Bạn nên đặt lịch thăm khám trực tiếp với Bác sĩ thuộc Khoa ${primaryDept.name} hoặc Khoa ${secondaryDept.name}.`,
-        suggested_questions: [
-          'Triệu chứng này bắt đầu xuất hiện từ khi nào?',
-          'Cơn đau có tăng lên khi vận động hay thở sâu không?',
-          'Bạn có kèm theo biểu hiện vã mồ hôi hoặc chóng mặt không?'
-        ]
+        predicted_disease_vn: 'Nội khoa tổng quát',
+        predicted_disease_en: 'General Internal Medicine',
+        detected_symptoms: selectedTags,
+        top_predictions: [],
+        suggested_action: `Bạn nên đặt lịch thăm khám trực tiếp với Bác sĩ thuộc Khoa ${primaryDept.name}.`,
+        suggested_questions: ['Triệu chứng này bắt đầu xuất hiện từ khi nào?']
       });
 
-      const matchedDocs = defaultMockDoctors.filter(d => d.department_name === primaryDept.name || d.department_name === secondaryDept.name);
+      const matchedDocs = defaultMockDoctors.filter(d => d.department_name === primaryDept.name);
       setRecommendedDoctors(matchedDocs.length > 0 ? matchedDocs : defaultMockDoctors);
     } finally {
       setAnalyzing(false);
@@ -960,6 +1016,56 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                     })}
                   </div>
                 </div>
+                {/* 132 CSV Symptom Checklist Selection (From TestAI Dataset) */}
+                {csvSymptoms.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-[#E4E1D8]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label className="text-sm font-medium text-[#1C1B19]">
+                        Chọn từ danh sách 132 Triệu chứng chuẩn CSV ({selectedCSVSymptoms.length} đã chọn)
+                      </label>
+                      <input
+                        type="text"
+                        value={csvFilterSearch}
+                        onChange={(e) => setCsvFilterSearch(e.target.value)}
+                        placeholder="Tìm kiếm triệu chứng (ví dụ: sốt, đau ngực, buồn nôn...)"
+                        className="bg-[#FFFFFF] border border-[#E4E1D8] rounded-sm px-3 py-1 text-xs text-[#1C1B19] focus:outline-none focus:border-[#1F6F5C] w-full sm:w-64"
+                      />
+                    </div>
+
+                    <div className="max-h-44 overflow-y-auto p-2.5 bg-[#F7F5F0] border border-[#E4E1D8] rounded-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                      {csvSymptoms
+                        .filter(item => !csvFilterSearch || item.name_vn.toLowerCase().includes(csvFilterSearch.toLowerCase()) || item.code.toLowerCase().includes(csvFilterSearch.toLowerCase()))
+                        .slice(0, 48)
+                        .map(item => {
+                          const isChecked = selectedCSVSymptoms.includes(item.code);
+                          return (
+                            <label
+                              key={item.code}
+                              className={`flex items-center space-x-2 p-1.5 rounded-sm cursor-pointer transition select-none ${
+                                isChecked ? 'bg-[#DCEAE6] text-[#1F6F5C] font-semibold' : 'bg-[#FFFFFF] hover:bg-[#EFECE6] text-[#1C1B19]'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    setSelectedCSVSymptoms(selectedCSVSymptoms.filter(c => c !== item.code));
+                                  } else {
+                                    setSelectedCSVSymptoms([...selectedCSVSymptoms, item.code]);
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 accent-[#1F6F5C] rounded-sm"
+                              />
+                              <span className="truncate" title={`${item.name_vn} (${item.code})`}>
+                                {item.name_vn}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-2">
                   <button
@@ -1025,6 +1131,61 @@ export default function SymptomCheckerBooking({ initialTab = 'checker', hideLand
                       <p className="text-sm text-[#6B6A65]">Dựa trên phân tích triệu chứng lâm sàng bạn đã cung cấp</p>
                     </div>
                   </div>
+
+                  {/* ML Model Diagnosis & Top Predictions Card */}
+                  {aiResult.predicted_disease_vn && (
+                    <div className="bg-[#DCEAE6]/30 border border-[#1F6F5C]/30 rounded-sm p-4 space-y-3 text-left">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <span className="text-xs font-semibold text-[#1F6F5C] uppercase tracking-wider block">Chẩn đoán sơ bộ từ Mô hình ML AI</span>
+                          <h3 className="text-lg font-bold text-[#1C1B19]">
+                            {aiResult.predicted_disease_vn}{' '}
+                            <span className="text-xs font-normal text-[#6B6A65]">({aiResult.predicted_disease_en})</span>
+                          </h3>
+                        </div>
+                        {aiResult.match_count > 0 && (
+                          <span className="px-2.5 py-1 rounded-sm bg-[#1F6F5C] text-white text-xs font-medium self-start sm:self-auto">
+                            Khớp {aiResult.match_count} đặc trưng
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Detected Symptoms Badges */}
+                      {aiResult.detected_symptoms && aiResult.detected_symptoms.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-xs font-medium text-[#6B6A65]">Triệu chứng trích xuất NLP:</span>
+                          {aiResult.detected_symptoms.map((sym, idx) => (
+                            <span key={idx} className="px-2 py-0.5 rounded-sm bg-[#FFFFFF] border border-[#1F6F5C]/30 text-[#1F6F5C] text-xs font-medium">
+                              {sym}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Top 3 Predictions Bar */}
+                      {aiResult.top_predictions && aiResult.top_predictions.length > 0 && (
+                        <div className="space-y-2 pt-3 border-t border-[#1F6F5C]/20">
+                          <span className="text-xs font-semibold text-[#1C1B19] block">Top 3 chẩn đoán khả thi nhất từ Machine Learning:</span>
+                          <div className="space-y-2">
+                            {aiResult.top_predictions.map((pred, idx) => (
+                              <div key={idx} className="space-y-1">
+                                <div className="flex justify-between text-xs font-medium text-[#1C1B19]">
+                                  <span>{pred.disease_vn} <span className="text-[#6B6A65]">({pred.specialty})</span></span>
+                                  <span className="font-bold text-[#1F6F5C]">{pred.probability_pct}%</span>
+                                </div>
+                                <div className="w-full bg-[#E4E1D8] h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className="bg-[#1F6F5C] h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${Math.min(100, Math.max(5, pred.probability_pct))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* 1-2 Recommended Department Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
