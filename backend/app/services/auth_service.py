@@ -8,6 +8,8 @@ from app.core.config import settings
 from app.models.user import NguoiDung, TaiKhoan, BenhNhan, BacSi, VaiTroEnum
 from app.schemas.auth import RegisterRequest, VerifyOtpRequest, LoginRequest, TokenResponse, UserProfileResponse
 
+from sqlalchemy.exc import IntegrityError
+
 logger = logging.getLogger("clinic_backend")
 
 
@@ -16,39 +18,51 @@ class AuthService:
 
     async def register_user(self, payload: RegisterRequest, db: AsyncSession) -> dict:
         """Đăng ký tài khoản người bệnh mới và gửi mã xác thực OTP (UC-A01)"""
-        # 1. Kiểm tra Email đã tồn tại hay chưa
-        stmt_check = select(TaiKhoan).where(TaiKhoan.email == payload.email)
-        existing_account = (await db.execute(stmt_check)).scalar_one_or_none()
+        # 1. Kiểm tra Email đã tồn tại trong TaiKhoan hoặc NguoiDung hay chưa
+        stmt_check_email = select(TaiKhoan).where(TaiKhoan.email == payload.email)
+        existing_account = (await db.execute(stmt_check_email)).scalar_one_or_none()
         if existing_account:
             raise ConflictException(f"Địa chỉ email '{payload.email}' đã được đăng ký trong hệ thống!")
+
+        # 1b. Kiểm tra Số điện thoại đã tồn tại trong NguoiDung hay chưa
+        if payload.so_dien_thoai:
+            stmt_check_phone = select(NguoiDung).where(NguoiDung.so_dien_thoai == payload.so_dien_thoai)
+            existing_phone = (await db.execute(stmt_check_phone)).scalar_one_or_none()
+            if existing_phone:
+                raise ConflictException(f"Số điện thoại '{payload.so_dien_thoai}' đã được sử dụng bởi một tài khoản khác!")
 
         # 2. Sinh mã OTP 6 số với TTL 5 phút
         otp_code = generate_otp(6)
         otp_expired_at = datetime.now(timezone.utc) + timedelta(minutes=5)
 
-        # 3. Tạo bản ghi NguoiDung (Person Pattern)
-        nguoi_dung = NguoiDung(
-            ho_ten=payload.ho_ten,
-            email=payload.email,
-            so_dien_thoai=payload.so_dien_thoai,
-            ngay_sinh=payload.ngay_sinh,
-            gioi_tinh=payload.gioi_tinh
-        )
-        db.add(nguoi_dung)
-        await db.flush()  # Sinh nguoi_dung.id
+        try:
+            # 3. Tạo bản ghi NguoiDung (Person Pattern)
+            nguoi_dung = NguoiDung(
+                ho_ten=payload.ho_ten,
+                email=payload.email,
+                so_dien_thoai=payload.so_dien_thoai,
+                ngay_sinh=payload.ngay_sinh,
+                gioi_tinh=payload.gioi_tinh
+            )
+            db.add(nguoi_dung)
+            await db.flush()  # Sinh nguoi_dung.id
 
-        # 4. Tạo bản ghi TaiKhoan lưu mật khẩu tạm chưa kích hoạt
-        tai_khoan = TaiKhoan(
-            nguoi_dung_id=nguoi_dung.id,
-            email=payload.email,
-            mat_khau_hash=hash_password(payload.mat_khau),  # Băm BCrypt cost 12
-            vai_tro=VaiTroEnum.BENH_NHAN.value,
-            is_active=False,
-            otp_code=otp_code,
-            otp_expired_at=otp_expired_at
-        )
-        db.add(tai_khoan)
-        await db.commit()
+            # 4. Tạo bản ghi TaiKhoan lưu mật khẩu tạm chưa kích hoạt
+            tai_khoan = TaiKhoan(
+                nguoi_dung_id=nguoi_dung.id,
+                email=payload.email,
+                mat_khau_hash=hash_password(payload.mat_khau),  # Băm BCrypt cost 12
+                vai_tro=VaiTroEnum.BENH_NHAN.value,
+                is_active=False,
+                otp_code=otp_code,
+                otp_expired_at=otp_expired_at
+            )
+            db.add(tai_khoan)
+            await db.commit()
+        except IntegrityError as e:
+            await db.rollback()
+            logger.warning(f"Registration IntegrityError: {e}")
+            raise ConflictException("Số điện thoại hoặc Email này đã được đăng ký trong hệ thống!")
 
         # 5. Gửi OTP qua Email (Giả lập console log an toàn cho dev/test)
         logger.info(f"🔑 [OTP GENERATED] Email: {payload.email} | Code: {otp_code} | Hết hạn lúc: {otp_expired_at}")

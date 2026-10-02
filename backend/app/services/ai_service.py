@@ -345,6 +345,13 @@ class AIService:
         except Exception as e:
             logger.error(f"❌ [AI SERVICE] Lỗi khi nạp mô hình AI: {str(e)}")
 
+    def normalize_vietnamese(self, raw_text: str) -> str:
+        """Chuẩn hóa chuỗi tiếng Việt sang Unicode NFC, chữ thường và loại bỏ ký tự đặc biệt"""
+        import unicodedata
+        text_clean = unicodedata.normalize('NFC', raw_text).lower().strip()
+        text_clean = re.sub(r'[^\w\s]', ' ', text_clean)
+        return re.sub(r'\s+', ' ', text_clean).strip()
+
     def get_csv_symptoms_list(self) -> List[CSVSymptomItem]:
         """Trả về danh sách 132 triệu chứng chuẩn CSV cho Frontend Checklist tab"""
         items = []
