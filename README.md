@@ -1,4 +1,4 @@
-# 🏥 NỀN TẢNG Y TẾ THÔNG MINH: BACKEND FASTAPI & POSTGRESQL TÍCH HỢP AI
+# 🏥 NỀN TẢNG Y TẾ THÔNG MINH PHONG KHÁM AI (SMARTCARE AI HEALTH PLATFORM)
 > **Học phần:** Project 1 (IT1.241.3) — Trường Đại học Giao Thông Vận Tải (UTC)  
 > **Giảng viên hướng dẫn:** TS. Nguyễn Đức Dư  
 > **Đơn vị thực hiện:** Nhóm 2 — Lớp Project 1-1-1-26 (N05)  
@@ -6,14 +6,17 @@
 
 ---
 
-## 🌟 TỔNG QUAN HỆ THỐNG
+## 🌟 TỔNG QUAN HỆ THỐNG FULLSTACK
 
-Dự án cung cấp hệ thống Backend API hoàn chỉnh phục vụ nền tảng quản lý phòng khám đa khoa và đặt lịch khám trực tuyến thông minh tích hợp trí tuệ nhân tạo (AI Triage):
-* **Xác thực & Bảo mật (Package A):** Đăng ký tài khoản xác thực OTP qua Email, băm mật khẩu chuẩn **BCrypt** (`cost=12`), cấp phát JWT Bearer Token 24 giờ, phân quyền 3 cấp độ (Bệnh nhân, Bác sĩ, Quản trị viên).
-* **Điều phối & Đặt lịch khám 30 phút (Package B):** Thuật toán tính toán Dynamic Slot 30 phút trong ngày, cơ chế khóa dòng **Pessimistic Locking (`SELECT ... FOR UPDATE`)** kết hợp **Unique Partial Index** cấp CSDL trên PostgreSQL triệt tiêu hoàn toàn lỗi đặt trùng khung giờ (Race Condition / Overbooking).
-* **Kiểm soát No-Show & Danh sách chờ (Waiting List):** Cơ chế nhắc hẹn trước 24h & 2h, tự động giải phóng slot nếu bỏ quên, hàng đợi thông minh (Smart Waitlist) tự động đôn người lên khi có chỗ trống.
-* **Trí tuệ nhân tạo & Red Flags (Package C):** Bộ lọc dấu hiệu cấp cứu khẩn cấp (ngắt luồng đặt lịch, cảnh báo gọi 115), mô hình học máy NLP phân loại 14 chuyên khoa lâm sàng (`ai_bac_si.pkl`), ngưỡng tin cậy 60% và nhật ký suy luận.
-* **Thăm khám lâm sàng & Bệnh án điện tử (Package D):** Mô hình hóa buổi khám thực tế (OpenMRS Encounter Pattern), ghi nhận 7 chỉ số sinh hiệu, chẩn đoán bệnh theo mã quốc tế **WHO ICD-10**, y lệnh cận lâm sàng và kê đơn thuốc ngoại trú kèm cơ chế **Khóa bệnh án Read-only** chống sửa đổi hồi tố.
+Dự án cung cấp giải pháp toàn diện bao gồm **Frontend Web Application (Next.js 14)** và **Backend RESTful API (FastAPI)** phục vụ quản lý phòng khám đa khoa & phân tích triệu chứng y tế thông minh bằng trí tuệ nhân tạo (AI Triage):
+
+* **Xác thực & Phân quyền Role-based (Package A):** Đăng ký, đăng nhập tài khoản xác thực OTP qua Email, băm mật khẩu chuẩn **BCrypt**, cấp phát **JWT Bearer Token** 24 giờ. Phân quyền 3 vai trò có Guard bảo vệ route: **Bệnh nhân (PATIENT)**, **Bác sĩ (DOCTOR)** và **Quản trị viên (ADMIN)**.
+* **Điều phối & Đặt lịch khám 30 phút (Package B):** Thuật toán tính toán Dynamic Slot 30 phút trong ngày, cơ chế khóa dòng **Pessimistic Locking (`SELECT ... FOR UPDATE`)** kết hợp **Unique Partial Index** cấp CSDL triệt tiêu hoàn toàn lỗi đặt trùng khung giờ (Overbooking).
+* **Trí tuệ nhân tạo & Phân loại lâm sàng (Package C):** 
+  * Bộ lọc từ khóa **Red Flags** phát hiện nguy cơ CẤP CỨU 115 lập tức.
+  * Mô hình Học máy NLP tiếng Việt (**Scikit-Learn TF-IDF + Logistic Regression** & **Underthesea**) huấn luyện dự đoán Top 3 chẩn đoán khả thi từ 132 triệu chứng chuẩn y khoa và gợi ý 14 chuyên khoa phù hợp.
+* **Thăm khám lâm sàng & Bệnh án điện tử (Package D):** Mô hình hóa buổi khám thực tế (OpenMRS Encounter Pattern), ghi nhận chỉ số sinh hiệu, chẩn đoán bệnh theo mã quốc tế **WHO ICD-10**, kê đơn thuốc ngoại trú kèm cơ chế **Khóa bệnh án Read-only**.
+* **Bảng điều khiển Quản trị (Package E):** Thống kê KPI lượt khám, tỷ lệ đặt lịch, phân công lịch làm việc bác sĩ và cấu hình ánh xạ triệu chứng - chuyên khoa.
 
 ---
 
@@ -21,191 +24,171 @@ Dự án cung cấp hệ thống Backend API hoàn chỉnh phục vụ nền t�
 
 | Tầng hệ thống | Công nghệ sử dụng | Vai trò & Đặc tính |
 | :--- | :--- | :--- |
-| **Framework** | **FastAPI (Python 3.11+)** | Hiệu năng cao, bất đồng bộ (Asynchronous ASGI), tự động sinh tài liệu OpenAPI / Swagger UI |
-| **Cơ sở dữ liệu** | **PostgreSQL 15+** | Hệ quản trị CSDL quan hệ mạnh mẽ, hỗ trợ khóa dòng `SELECT FOR UPDATE`, Unique Partial Indexes |
-| **ORM & Driver** | **SQLAlchemy 2.0 Async + asyncpg** | Ánh xạ đối tượng CSDL bất đồng bộ với Connection Pool tối ưu hóa truy vấn |
-| **Database Migration** | **Alembic** | Quản lý phiên bản cấu trúc CSDL tự động theo mã nguồn |
-| **Validation & Schemas** | **Pydantic v2** | Xác thực kiểu dữ liệu đầu vào/ra nghiêm ngặt, chuẩn hóa `ResponseEnvelope` |
-| **Security & Auth** | **Passlib (BCrypt) + Python-Jose (JWT)** | Băm mật khẩu 1 chiều an toàn, ký số và xác thực JWT Bearer token |
-| **Email Gateway** | **aiosmtplib** | Gửi email chứa mã xác thực OTP 6 số bất đồng bộ qua Gmail SMTP |
-| **Containerization** | **Docker & Docker Compose** | Đóng gói môi trường đồng nhất giữa máy lập trình và máy chủ chạy thực tế |
-| **Testing & CI** | **Pytest + Ruff + GitHub Actions** | Kiểm thử tự động cục bộ trong 1.5s và tự động kiểm tra tích hợp khi tạo Pull Request |
+| **Giao diện (Frontend)** | **Next.js 14 (App Router) + React 18** | Giao diện hiện đại, tối ưu SEO, Server/Client Components, hỗ trợ Responsive |
+| **Styling & UI Components** | **Tailwind CSS + Lucide React Icons** | Design System chuẩn phòng khám, Glassmorphism, animations mượt mà |
+| **Giao tiếp API (Frontend)** | **Axios / Fetch Client (`services/api.js`)** | Tích hợp tự động với Backend API, quản lý token JWT & xử lý lỗi tập trung |
+| **Máy chủ API (Backend)** | **FastAPI (Python 3.11+)** | Hiệu năng cao, bất đồng bộ (ASGI), tự động sinh tài liệu OpenAPI / Swagger UI |
+| **Trí tuệ nhân tạo (AI Engine)**| **Scikit-learn + Underthesea NLP** | Xử lý ngôn ngữ tự nhiên tiếng Việt, Vector hóa TF-IDF, Logistic Regression |
+| **Cơ sở dữ liệu (Database)** | **PostgreSQL 15+ / SQLite Fallback** | Quản trị CSDL quan hệ, hỗ trợ khóa dòng `SELECT FOR UPDATE` & Async Driver |
+| **ORM & Database Driver** | **SQLAlchemy 2.0 Async + asyncpg / aiosqlite** | Ánh xạ đối tượng CSDL bất đồng bộ với Connection Pool |
+| **Xác thực & Bảo mật** | **Passlib (BCrypt) + Python-Jose (JWT)** | Băm mật khẩu an toàn, cấp phát và xác thực JWT Bearer Token |
+| **Containerization & CI** | **Docker, Docker Compose, Pytest** | Đóng gói môi trường đồng nhất & kiểm thử tự động toàn bộ API |
 
 ---
 
-## 📂 CẤU TRÚC THƯ MỤC DỰ ÁN (MÔ HÌNH PHÂN TẦNG BCE)
+## 📂 CẤU TRÚC HOÀN CHỈNH CỦA DỰ ÁN (PROJECT STRUCTURE)
 
 ```text
-backend/
-├── app/
-│   ├── main.py                  # Điểm khởi chạy FastAPI, middleware CORS, Lifespan, Exception Handlers
-│   ├── core/                    # Tầng hạ tầng, cấu hình & an ninh
-│   │   ├── config.py            # Quản lý biến môi trường Pydantic Settings
-│   │   ├── database.py          # Kết nối AsyncEngine, session factory, get_db dependency
-│   │   ├── security.py          # Băm BCrypt, sinh/giải mã JWT token, sinh mã OTP 6 số
-│   │   ├── response.py          # Chuẩn hóa Response Envelope (success, code, data, meta, errors)
-│   │   ├── exceptions.py        # Bộ xử lý lỗi toàn cục (Global Exception Handlers)
-│   │   └── dependencies.py      # Dependency Injection (get_current_user, require_roles RBAC)
-│   ├── models/                  # ENTITY LAYER: 18 bảng CSDL SQLAlchemy 2.0 Async chuẩn OpenMRS
-│   │   ├── base.py              # BaseModel chứa ID và created_at/updated_at
-│   │   ├── user.py              # NguoiDung, TaiKhoan, BenhNhan, BacSi, ChuyenKhoa
-│   │   ├── appointment.py       # LichLamViec, LichKham, DanhSachCho, PhanTichAI, DanhGiaAI
-│   │   └── medical.py           # KhaiNiem (ICD-10), TuKhoaCapCuu, DichVu, LuotKham, ChanDoan, ChiDinh, DonThuoc...
-│   ├── schemas/                 # BOUNDARY LAYER: Pydantic v2 DTOs
-│   │   ├── common.py            # ResponseEnvelope, PaginationParams, PaginationMeta
-│   │   ├── auth.py              # RegisterRequest, VerifyOtpRequest, LoginRequest, TokenResponse...
-│   │   ├── appointment.py       # DoctorScheduleSlotsResponse, AppointmentCreateRequest...
-│   │   └── ai.py                # SymptomTriageRequest, SymptomTriageResponse...
-│   ├── services/                # CONTROL LAYER: Logic nghiệp vụ & Giao dịch Database
-│   │   ├── auth_service.py      # Đăng ký, gửi OTP, xác thực BCrypt, kích hoạt tài khoản
-│   │   ├── appointment_service.py # Thuật toán tính slot 30 phút, Khóa SELECT FOR UPDATE, Waitlist
-│   │   └── ai_service.py        # 3 chốt chặn y tế: Red Flags 115 -> Model AI -> Ngưỡng 60%
-│   └── routers/                 # BOUNDARY LAYER: REST API Endpoints (/api/v1)
-│       ├── api_v1.py            # Tập hợp các router con
-│       ├── auth.py              # /api/v1/auth
-│       ├── appointment.py       # /api/v1/appointments
-│       ├── ai_triage.py         # /api/v1/ai
-│       └── medical.py           # /api/v1/medical
-├── database/
-│   └── schema_postgresql.sql    # Bản vẽ DDL PostgreSQL 18 bảng chuẩn OpenMRS
-├── docs/                        # THƯ MỤC TÀI LIỆU QUY CHUẨN DỰ ÁN
-│   ├── CODING_STANDARDS.md      # Quy tắc đặt tên, Response Envelope, Clean Code & An toàn y tế
-│   ├── PRE_PUSH_AND_CI_GUIDE.md # Hướng dẫn test 2 giây trước khi push & CI GitHub Actions
-│   ├── NGHIEP_VU_VA_KIEN_TRUC.md # 5 Luồng nghiệp vụ chuyên sâu & Đối chiếu OpenMRS
-│   ├── THIET_KE_CSDL_POSTGRESQL_OPENMRS.md # Đặc tả chi tiết 18 bảng CSDL PostgreSQL
-│   └── BANG_PHAN_CONG_CHI_TIET_SPRINT_2.md # Phân công chi tiết nhiệm vụ từng người
-├── tests/                       # BỘ KIỂM THỬ TỰ ĐỘNG (PYTEST)
-│   ├── test_security.py         # Test BCrypt, JWT, sinh OTP
-│   ├── test_ai_red_flags.py     # Test bộ lọc Red Flags cấp cứu y tế
-│   ├── test_appointment_rules.py# Test thuật toán chia 8 slot 30 phút, quy tắc hủy 2 tiếng
-│   └── test_api_smoke.py        # Test Response Envelope và validation lỗi 422
-├── .env.example                 # Biến môi trường mẫu
-├── Dockerfile                   # Build image backend Python 3.11
-├── docker-compose.yml           # Khởi chạy PostgreSQL 15 + FastAPI
-├── requirements.txt             # Danh mục thư viện Python
-└── seed_data.py                 # Script tự động nạp CSDL mẫu hoàn chỉnh
+code/
+├── backend/                             # MÁY CHỦ RESTFUL API & AI ENGINE (FASTAPI)
+│   ├── app/
+│   │   ├── ai_assets/                   # Mô hình ML & Dữ liệu huấn luyện AI
+│   │   │   ├── ai_symptom_model.joblib  # Model Logistic Regression đã huấn luyện
+│   │   │   ├── tfidf_vectorizer.joblib  # TF-IDF Vectorizer xử lý văn bản
+│   │   │   ├── training_data.csv        # Bộ dữ liệu 132 triệu chứng y khoa
+│   │   │   └── test_ai_app.py           # Script kiểm thử độc lập mô hình AI
+│   │   ├── core/                        # Tầng hạ tầng, cấu hình & an ninh
+│   │   │   ├── config.py                # Quản lý biến môi trường Pydantic Settings
+│   │   │   ├── database.py              # Kết nối AsyncEngine & Session Factory
+│   │   │   ├── security.py              # Băm BCrypt, sinh JWT token & OTP 6 số
+│   │   │   ├── response.py              # Chuẩn hóa Response Envelope toàn cục
+│   │   │   └── dependencies.py          # Dependency Injection & Phân quyền RBAC
+│   │   ├── models/                      # ENTITY LAYER (SQLAlchemy 2.0 Async - OpenMRS)
+│   │   │   ├── user.py                  # TaiKhoan, BenhNhan, BacSi, ChuyenKhoa
+│   │   │   ├── appointment.py           # LichLamViec, LichKham, PhanTichAI, DanhGiaAI
+│   │   │   └── medical.py               # ChanDoan (ICD-10), DonThuoc, TuKhoaCapCuu...
+│   │   ├── schemas/                     # BOUNDARY LAYER (Pydantic v2 DTOs)
+│   │   │   ├── auth.py                  # LoginRequest, RegisterRequest, TokenResponse
+│   │   │   ├── appointment.py           # SlotBookingRequest, AppointmentResponse
+│   │   │   ├── ai.py                    # SymptomAnalysisRequest, TopDiseasePrediction...
+│   │   │   └── medical.py               # MedicalRecordSchema, PrescriptionSchema
+│   │   ├── services/                    # CONTROL LAYER (Business Logic & Transactions)
+│   │   │   ├── auth_service.py          # Logic Đăng ký, OTP, Đăng nhập & Token
+│   │   │   ├── appointment_service.py   # Chia Slot 30 phút, Khóa Pessimistic Locking
+│   │   │   └── ai_service.py            # Chốt chặn Red Flags 115 -> NLP -> ML Inference
+│   │   ├── routers/                     # API ENDPOINTS (/api/v1)
+│   │   │   ├── auth.py                  # Endpoints xác thực tài khoản
+│   │   │   ├── appointment.py           # Endpoints đặt lịch & xem slot
+│   │   │   ├── ai_triage.py             # Endpoints phân tích triệu chứng & CSV checklist
+│   │   │   └── medical.py               # Endpoints chẩn đoán & bệnh án
+│   │   └── main.py                      # Master Entrypoint, CORS & Exception Handlers
+│   ├── database/                        # SQL Schemas & Alembic Migrations
+│   ├── docs/                            # Tài liệu quy chuẩn kỹ thuật & phân công Sprint
+│   ├── tests/                           # Bộ kiểm thử tự động Pytest
+│   ├── seed_data.py                     # Script nạp CSDL mẫu (Bác sĩ, Khoa, Lịch khám)
+│   ├── Dockerfile & docker-compose.yml  # Cấu hình containerization cho Backend
+│   └── requirements.txt                 # Khai báo các thư viện Python
+│
+├── frontend/                            # GIAO DIỆN NGUỜI DÙNG WEB APP (NEXT.JS 14)
+│   ├── app/                             # Next.js App Router (Pages & Layouts)
+│   │   ├── page.jsx                     # Trang chủ Landing Page khám bệnh & AI
+│   │   ├── layout.js                    # Root Layout chứa Header & Footer
+│   │   ├── symptom-checker/             # Trang AI phân tích triệu chứng & Đặt lịch
+│   │   ├── patient/dashboard/           # Dashboard Quản lý lịch hẹn Bệnh nhân
+│   │   ├── doctor/dashboard/            # Bàn làm việc Bác sĩ & Kê đơn ICD-10
+│   │   ├── admin/dashboard/             # Dashboard Quản trị hệ thống & KPI
+│   │   ├── departments/                 # Danh mục 14 chuyên khoa y tế
+│   │   ├── doctors/                     # Danh sách & Hồ sơ đội ngũ Bác sĩ
+│   │   └── (auth, about, contact...)/   # Các trang phụ trợ khác
+│   ├── components/                      # UI Components tái sử dụng
+│   │   ├── Header.jsx & Footer.jsx      # Thanh điều hướng & Chân trang
+│   │   ├── SymptomCheckerBooking.jsx    # Component chọn 132 triệu chứng & AI gợi ý
+│   │   ├── AuthModal.jsx                # Modal Đăng nhập / Đăng ký 3 Roles
+│   │   └── DoctorScheduleModal.jsx      # Modal chọn khung giờ đặt lịch 30 phút
+│   ├── services/
+│   │   └── api.js                       # Tầng kết nối REST API bất đồng bộ với Backend
+│   ├── package.json                     # Dependencies (Next.js, React, Tailwind CSS)
+│   └── tailwind.config.js               # Cấu hình Tailwind CSS Design System
+│
+├── docker-compose.yml                   # Root Docker Compose (Fullstack System)
+└── README.md                            # Tài liệu hướng dẫn sử dụng dự án
 ```
 
 ---
 
-## 🚀 HƯỚNG DẪN CẤU HÌNH & KHỞI CHẠY HỆ THỐNG
+## 🚀 HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG FULLSTACK
 
-### 1. Yêu cầu môi trường tối thiểu
-* **Python**: Phiên bản `3.11` trở lên.
-* **Cơ sở dữ liệu**: `PostgreSQL 15+` (hoặc chạy qua Docker).
-* **Hệ điều hành**: Windows 10/11, macOS hoặc Linux.
+### 1. Khởi chạy Backend (FastAPI - Port 8000)
 
----
+Mở Terminal tại thư mục `code/backend`:
 
-### 2. Cấu hình biến môi trường (`.env`)
-Sao chép file mẫu `.env.example` thành `.env`:
 ```bash
-cp .env.example .env
+# 1. Di chuyển vào thư mục backend
+cd backend
+
+# 2. Tạo và kích hoạt môi trường ảo Python
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# 3. Cài đặt các gói phụ thuộc
+pip install -r requirements.txt
+
+# 4. Khởi tạo Cơ sở dữ liệu & Nạp dữ liệu mẫu (Seed Data)
+python seed_data.py
+
+# 5. Khởi chạy Server FastAPI phát triển
+python -m uvicorn app.main:app --reload --port 8000
 ```
-Nội dung file `.env` mẫu:
-```ini
-PROJECT_NAME="Clinic AI Booking Backend"
-API_V1_STR="/api/v1"
-DEBUG=True
-
-# Cấu hình PostgreSQL Async
-POSTGRES_SERVER=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=clinic_user
-POSTGRES_PASSWORD=clinic_password
-POSTGRES_DB=clinic_db
-DATABASE_URL=postgresql+asyncpg://clinic_user:clinic_password@localhost:5432/clinic_db
-
-# JWT Security
-SECRET_KEY=super_secret_clinic_jwt_key_project_1_change_in_production_2026
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-
-# AI Parameters
-AI_CONFIDENCE_THRESHOLD=0.60
-SLOT_DURATION_MINUTES=30
-CANCELLATION_MINIMUM_HOURS=2
-```
+* 📘 **Swagger UI API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* 🔴 **Healthcheck:** [http://localhost:8000/health](http://localhost:8000/health)
 
 ---
 
-### 3. Khởi chạy hệ thống (Chọn 1 trong 2 cách)
+### 2. Khởi chạy Frontend (Next.js 14 - Port 3000)
 
-#### 🌟 CÁCH 1: Khởi chạy bằng Docker Compose (Khuyên dùng — Nhanh nhất)
-Chỉ cần mở Terminal tại thư mục `backend/` và gõ 1 câu lệnh:
+Mở một cửa sổ Terminal mới tại thư mục `code/frontend`:
+
 ```bash
-docker compose up -d
+# 1. Di chuyển vào thư mục frontend
+cd frontend
+
+# 2. Cài đặt các gói npm phụ thuộc
+npm install
+
+# 3. Khởi chạy máy chủ giao diện Next.js
+npm run dev
 ```
-Docker sẽ tự động:
-1. Tải và khởi chạy container **PostgreSQL 15** tại cổng `5432`.
-2. Tự động kiểm tra sức khỏe CSDL (Healthcheck).
-3. Build và khởi chạy **FastAPI Backend** tại cổng `8000`.
+* 🌐 **Truy cập Giao diện Web App:** [http://localhost:3000](http://localhost:3000)
 
 ---
 
-#### 💻 CÁCH 2: Khởi chạy cục bộ bằng Python (Local Virtualenv)
-1. **Tạo và kích hoạt môi trường ảo Python:**
-   ```bash
-   # Trên Windows:
-   python -m venv venv
-   .\venv\Scripts\activate
+### 3. Khởi chạy bằng Docker Compose (Khuyên dùng thử nghiệm nhanh)
 
-   # Trên Linux/macOS:
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-2. **Cài đặt các thư viện phụ thuộc:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. **Khởi động Database PostgreSQL (nếu đã có sẵn Postgres cục bộ hoặc bật container DB):**
-   ```bash
-   docker compose up -d db
-   ```
-4. **Khởi tạo dữ liệu mẫu (Seed Data) vào PostgreSQL:**
-   ```bash
-   python seed_data.py
-   ```
-5. **Khởi chạy máy chủ phát triển (Development Server):**
-   ```bash
-   uvicorn app.main:app --reload --port 8000
-   ```
+Mở Terminal tại thư mục gốc `code/`:
+
+```bash
+docker compose up -d --build
+```
+Hệ thống sẽ tự động khởi chạy toàn bộ Backend (FastAPI), Cơ sở dữ liệu (PostgreSQL) và Frontend (Next.js).
 
 ---
 
-## 🔑 TÀI KHOẢN MẪU ĐỂ ĐĂNG NHẬP & TEST NGAY (SEED DATA)
+## 🔑 TÀI KHOẢN MẪU DÙNG ĐỂ ĐĂNG NHẬP & TEST NGAY
 
-Sau khi chạy `seed_data.py`, hệ thống tự động nạp sẵn các tài khoản thử nghiệm:
+Sau khi chạy `seed_data.py`, hệ thống tự động nạp sẵn các tài khoản thử nghiệm cho các vai trò:
 
-| Vai trò (Role) | Email đăng nhập | Mật khẩu | Thông tin chi tiết |
+| Vai trò (Role) | Email đăng nhập | Mật khẩu | Chức năng kiểm thử |
 | :--- | :--- | :--- | :--- |
-| **Quản trị viên (ADMIN)** | `admin@clinic.com` | `Admin@123456` | Toàn quyền quản trị hệ thống, danh mục khoa phòng |
-| **Bác sĩ (DOCTOR)** | `an.doctor@clinic.com` | `Doctor@123456` | BSCKI. Nguyễn Văn An (Khoa Tim mạch, phòng 201) |
-| **Bác sĩ (DOCTOR)** | `bich.doctor@clinic.com` | `Doctor@123456` | ThS.BS. Trần Thị Bích (Khoa Tiêu hóa, phòng 202) |
-| **Bệnh nhân (PATIENT)**| `patient@test.com` | `Patient@123456` | Nguyễn Thị Bệnh Nhân (Mã y tế: BN-2026-0001, O+) |
-
-*Ngoài ra, hệ thống đã nạp sẵn **lịch làm việc 14 ngày tới** cho 4 bác sĩ mẫu và **1 ca khám mẫu hoàn chỉnh** gồm chẩn đoán ICD-10 và đơn thuốc.*
+| **Quản trị viên (ADMIN)** | `admin@clinic.com` | `Admin@123456` | Dashboard Admin, Xem KPI, Phân công lịch trực bác sĩ |
+| **Bác sĩ (DOCTOR)** | `an.doctor@clinic.com` | `Doctor@123456` | BSCKI. Nguyễn Văn An (Khoa Tim mạch) — Xem ca khám & Kê đơn ICD-10 |
+| **Bác sĩ (DOCTOR)** | `bich.doctor@clinic.com` | `Doctor@123456` | ThS.BS. Trần Thị Bích (Khoa Tiêu hóa) — Tiếp nhận bệnh nhân & đơn thuốc |
+| **Bệnh nhân (PATIENT)**| `patient@test.com` | `Patient@123456` | Nguyễn Thị Bệnh Nhân — Test AI Check triệu chứng & Đặt lịch slot 30p |
 
 ---
 
-## 📖 TÀI LIỆU API SWAGGER UI TƯƠNG TÁC TRỰC TIẾP
+## 🧪 QUY TRÌNH KIỂM THỬ TỰ ĐỘNG (AUTOMATED TESTING)
 
-Khi server đang chạy, truy cập vào trình duyệt:
-* 📘 **Swagger UI (Interactive API Docs):** [http://localhost:8000/docs](http://localhost:8000/docs)
-* 📕 **ReDoc (Specification Docs):** [http://localhost:8000/redoc](http://localhost:8000/redoc)
-* 🟢 **Health Check Endpoint:** [http://localhost:8000/health](http://localhost:8000/health)
-
----
-
-## 🧪 QUY TRÌNH KIỂM THỬ TỰ ĐỘNG (PRE-PUSH AUTOMATED TESTING)
-
-Trước khi thực hiện `git push` lên GitHub, mọi thành viên **bắt buộc** chạy lệnh kiểm thử tự động tại Terminal:
+Chạy bộ kiểm thử Pytest tự động tại thư mục `backend/`:
 
 ```bash
+cd backend
 pytest tests/ -v
 ```
 
-**Kết quả mong đợi (100% Passed trong 1.5 giây):**
+**Kết quả mong đợi:**
 ```text
 tests/test_security.py::test_password_hashing PASSED                  [ 20%]
 tests/test_security.py::test_otp_generation PASSED                    [ 40%]
@@ -217,14 +200,14 @@ tests/test_appointment_rules.py::test_slot_generator_calculation PASSED [100%]
 
 ---
 
-## 📚 DANH MỤC TÀI LIỆU KỸ THUẬT NỘI BỘ (THƯ MỤC `docs/`)
+## 📚 TÀI LIỆU KỸ THUẬT NỘI BỘ (THƯ MỤC `backend/docs/`)
 
 Toàn bộ các quy tắc kỹ thuật của dự án được lưu trữ chi tiết tại:
-* 📄 [**CODING_STANDARDS.md**](docs/CODING_STANDARDS.md) — Quy tắc đặt tên biến/hàm/bảng CSDL, chuẩn Response Envelope, quy tắc khóa dòng PostgreSQL, đạo đức AI y tế.
-* 📄 [**PRE_PUSH_AND_CI_GUIDE.md**](docs/PRE_PUSH_AND_CI_GUIDE.md) — Hướng dẫn 2 bước kiểm thử trước khi push và cơ chế tự động chặn lỗi của GitHub Actions CI.
-* 📄 [**NGHIEP_VU_VA_KIEN_TRUC.md**](docs/NGHIEP_VU_VA_KIEN_TRUC.md) — Phân tích thực trạng 58% đặt nhầm khoa, chi tiết 5 luồng nghiệp vụ y tế cốt lõi và đối chiếu mô hình OpenMRS 3.0.
-* 📄 [**THIET_KE_CSDL_POSTGRESQL_OPENMRS.md**](docs/THIET_KE_CSDL_POSTGRESQL_OPENMRS.md) — Bản đặc tả kiến trúc 18 bảng CSDL PostgreSQL, sơ đồ quan hệ ERD Mermaid và giải pháp kỹ thuật.
-* 📄 [**BANG_PHAN_CONG_CHI_TIET_SPRINT_2.md**](docs/BANG_PHAN_CONG_CHI_TIET_SPRINT_2.md) — Bảng phân công chi tiết công việc cho 5 thành viên (What - How - Output).
+* 📄 [**CODING_STANDARDS.md**](backend/docs/CODING_STANDARDS.md) — Quy tắc đặt tên biến/hàm/bảng CSDL, chuẩn Response Envelope, quy tắc khóa dòng PostgreSQL, đạo đức AI y tế.
+* 📄 [**PRE_PUSH_AND_CI_GUIDE.md**](backend/docs/PRE_PUSH_AND_CI_GUIDE.md) — Hướng dẫn 2 bước kiểm thử trước khi push và cơ chế tự động chặn lỗi của GitHub Actions CI.
+* 📄 [**NGHIEP_VU_VA_KIEN_TRUC.md**](backend/docs/NGHIEP_VU_VA_KIEN_TRUC.md) — Phân tích thực trạng 58% đặt nhầm khoa, chi tiết 5 luồng nghiệp vụ y tế cốt lõi và đối chiếu mô hình OpenMRS 3.0.
+* 📄 [**THIET_KE_CSDL_POSTGRESQL_OPENMRS.md**](backend/docs/THIET_KE_CSDL_POSTGRESQL_OPENMRS.md) — Bản đặc tả kiến trúc CSDL PostgreSQL, sơ đồ quan hệ ERD và giải pháp kỹ thuật.
+* 📄 [**BANG_PHAN_CONG_CHI_TIET_SPRINT_2.md**](backend/docs/BANG_PHAN_CONG_CHI_TIET_SPRINT_2.md) — Bảng phân công chi tiết công việc cho 5 thành viên.
 
 ---
 
